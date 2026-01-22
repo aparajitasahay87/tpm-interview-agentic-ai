@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: tpm-interview-backend
+    env: node
+    region: oregon
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: PINECONE_ENVIRONMENT
+        sync: false
+      - key: PINECONE_INDEX
+        sync: false
+      - key: PORT
+        value: 3000
