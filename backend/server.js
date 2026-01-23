@@ -39,6 +39,28 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Database setup endpoint (TEMPORARY - remove after first use)
+app.get('/setup-db', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const migrationPath = path.join(__dirname, 'db/migrations/001_initial_schema.sql');
+    const migration = fs.readFileSync(migrationPath, 'utf8');
+    
+    await db.query(migration);
+    
+    res.json({ 
+      success: true, 
+      message: 'Database tables created successfully!' 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
+
 // API routes (will add later)
 app.use('/api/tools', require('./routes/tools'));
 
@@ -60,7 +82,7 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-  console.log(`📂 Database: ${process.env.DB_NAME}`);
+  console.log(`📂 Database: ${process.env.DB_NAME || 'Not configured'}`);
 });
 
 module.exports = app;
