@@ -322,6 +322,31 @@ app.get('/admin/test-pinecone', async (req, res) => {
   }
 });
 
+// Test embedding generation
+app.post('/admin/test-embedding', async (req, res) => {
+  try {
+    const EmbeddingGenerator = require('./agents/tools/EmbeddingGenerator');
+    const generator = new EmbeddingGenerator();
+    
+    const testText = req.body.text || 'This is a test embedding for TPM interview preparation';
+    
+    const embedding = await generator.generateEmbedding(testText);
+    
+    res.json({
+      success: true,
+      text: testText,
+      embedding_length: embedding.length,
+      embedding_preview: embedding.slice(0, 5), // First 5 values
+      model: generator.model
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // ============================================
 // API ROUTES
 // ============================================
