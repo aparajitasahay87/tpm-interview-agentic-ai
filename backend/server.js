@@ -7,7 +7,7 @@ require('dotenv').config();
 const db = require('./config/database');
 
 const app = express();
-const PORT = process.env.PORT || 10000; // Updated to match Render
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
@@ -42,7 +42,11 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Database setup endpoint - Week 1 (keep this)
+// ============================================
+// WEEK 1: DATABASE SETUP
+// ============================================
+
+// Database setup endpoint - Week 1 schema
 app.get('/setup-db', async (req, res) => {
   try {
     const migrationPath = path.join(__dirname, 'db/migrations/001_initial_schema.sql');
@@ -52,7 +56,7 @@ app.get('/setup-db', async (req, res) => {
     
     res.json({ 
       success: true, 
-      message: 'Database tables created successfully!' 
+      message: 'Week 1 database tables created successfully!' 
     });
   } catch (error) {
     res.status(500).json({ 
@@ -63,7 +67,7 @@ app.get('/setup-db', async (req, res) => {
 });
 
 // ============================================
-// WEEK 2: ADMIN/MIGRATION ENDPOINTS
+// WEEK 2: MIGRATION ENDPOINTS
 // ============================================
 
 // Run Week 2 migration (add RAG fields)
@@ -77,7 +81,7 @@ app.post('/admin/migrate', async (req, res) => {
         success: false,
         error: 'Migration file not found',
         expected_path: migrationPath,
-        hint: 'Create the file first: backend/db/migrations/002_add_rag_fields.sql'
+        hint: 'Create the file: backend/db/migrations/002_add_rag_fields.sql'
       });
     }
     
@@ -117,7 +121,7 @@ app.post('/admin/rollback', async (req, res) => {
     
     res.json({ 
       success: true, 
-      message: 'Rollback executed successfully - reverted to Week 1 schema',
+      message: 'Rollback executed - reverted to Week 1 schema',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -193,11 +197,146 @@ app.get('/admin/migration-status', async (req, res) => {
 });
 
 // ============================================
-// END WEEK 2 ADMIN ENDPOINTS
+// WEEK 2: SEED DATA ENDPOINT
 // ============================================
 
-// API routes
+// Load seed data (10 ideal TPM answers)
+app.post('/admin/seed', async (req, res) => {
+  try {
+    const seedPath = path.join(__dirname, 'db/seeds/001_ideal_tpm_answers.sql');
+    
+    // Check if file exists
+    if (!fs.existsSync(seedPath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Seed file not found',
+        expected_path: seedPath,
+        hint: 'Create the file: backend/db/seeds/001_ideal_tpm_answers.sql'
+      });
+    }
+    
+    const sql = fs.readFileSync(seedPath, 'utf8');
+    await db.query(sql);
+    
+    const count = await db.query('SELECT COUNT(*) FROM sample_answers');
+    
+    res.json({ 
+      success: true, 
+      message: 'Seed data (10 ideal TPM answers) loaded successfully',
+      total_rows: parseInt(count.rows[0].count),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Seed error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      hint: 'Check if migration 002 has been run first'
+    });
+  }
+});
+
+// Get sample answers (for verification)
+app.get('/admin/samples', async (req, res) => {
+  try {
+    const samples = await db.query(`
+      SELECT 
+        id,
+        question_type,
+        LEFT(question_text, 100) as question_preview,
+        LEFT(answer_text, 150) as answer_preview,
+        level,
+        overall_score,
+        is_good_example
+      FROM sample_answers
+      ORDER BY question_type, id
+      LIMIT 20;
+    `);
+    
+    const count = await db.query('SELECT COUNT(*) FROM sample_answers');
+    
+    res.json({
+      success: true,
+      total_samples: parseInt(count.rows[0].count),
+      samples: samples.rows,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Clear all sample answers (for testing)
+app.delete('/admin/clear-samples', async (req, res) => {
+  try {
+    await db.query('DELETE FROM sample_answers');
+    
+    res.json({
+      success: true,
+      message: 'All sample answers cleared',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// WEEK 2: PINECONE ENDPOINTS
+// ============================================
+
+// Test Pinecone connection
+app.get('/admin/test-pinecone', async (req, res) => {
+  try {
+    const { testConnection } = require('./config/pinecone');
+    const result = await testConnection();
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Pinecone connected successfully',
+        index_name: process.env.PINECONE_INDEX_NAME,
+        api_key_present: !!process.env.PINECONE_API_KEY,
+        existing_indexes: result.indexes.map(idx => ({
+          name: idx.name,
+          dimension: idx.dimension
+        }))
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// API ROUTES
+// ============================================
+
+
+// ============================================
+// API ROUTES
+// ============================================
+
+// Week 1 API routes
 app.use('/api/tools', require('./routes/tools'));
+
+// ============================================
+// ERROR HANDLING
+// ============================================
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -210,16 +349,41 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+  res.status(404).json({ 
+    error: 'Route not found',
+    path: req.path,
+    available_routes: {
+      health: 'GET /health',
+      week1_setup: 'GET /setup-db',
+      week2_migrate: 'POST /admin/migrate',
+      week2_rollback: 'POST /admin/rollback',
+      week2_seed: 'POST /admin/seed',
+      verify: 'GET /admin/verify-schema',
+      status: 'GET /admin/migration-status',
+      samples: 'GET /admin/samples',
+      api: 'POST /api/tools/parse-star'
+    }
+  });
 });
 
-// Start server
+// ============================================
+// START SERVER
+// ============================================
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📂 Database: ${process.env.DB_NAME || 'Not configured'}`);
   console.log(`📌 Version: 2.0.0-dev (Week 2 in progress)`);
-  console.log(`🔧 Admin endpoints available at /admin/*`);
+  console.log(`\n🔧 Admin Endpoints:`);
+  console.log(`   GET  /health - Health check`);
+  console.log(`   GET  /admin/migration-status - Check migrations`);
+  console.log(`   POST /admin/migrate - Run Week 2 migration`);
+  console.log(`   POST /admin/rollback - Rollback Week 2`);
+  console.log(`   POST /admin/seed - Load 10 ideal TPM answers`);
+  console.log(`   GET  /admin/verify-schema - View table schema`);
+  console.log(`   GET  /admin/samples - View sample answers`);
+  console.log(`   DELETE /admin/clear-samples - Clear all samples`);
 });
 
 module.exports = app;
