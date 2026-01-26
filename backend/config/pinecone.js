@@ -10,6 +10,11 @@ const INDEX_NAME = process.env.PINECONE_INDEX_NAME || 'tpm-interview-examples';
 const DIMENSION = 1536; // OpenAI text-embedding-3-small
 const METRIC = 'cosine';
 
+// Get Pinecone client (NEW - for Week 2 Day 3)
+async function getPineconeClient() {
+  return pinecone;
+}
+
 // Get or create index
 async function getIndex() {
   try {
@@ -62,6 +67,7 @@ async function testConnection() {
 
 module.exports = {
   pinecone,
+  getPineconeClient,  // NEW export
   getIndex,
   testConnection,
   INDEX_NAME,

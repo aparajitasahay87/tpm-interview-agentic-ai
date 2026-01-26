@@ -20,7 +20,13 @@ pool.on('error', (err) => {
 
 const query = (text, params) => pool.query(text, params);
 
+// Get pool instance (NEW - for Week 2 Day 3)
+function getPool() {
+  return pool;
+}
+
 module.exports = {
   query,
-  pool
+  pool,
+  getPool  // NEW export
 };
