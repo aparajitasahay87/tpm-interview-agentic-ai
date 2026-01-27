@@ -4,7 +4,12 @@ const path = require('path');
 require('dotenv').config();
 
 async function runSeed() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+ const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' || process.env.DATABASE_URL.includes('render.com') 
+    ? { rejectUnauthorized: false } 
+    : false
+});
   
   try {
     console.log('🌱 Seeding database with ideal TPM answers...');
