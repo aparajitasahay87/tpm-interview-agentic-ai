@@ -1,4 +1,5 @@
 const express = require('express');
+const { checkRateLimit } = require('../middleware/simpleRateLimiter');
 const router = express.Router();
 const STARParser = require('../agents/tools/STARParser');
 const SemanticSearch = require('../agents/tools/SemanticSearch');
@@ -8,7 +9,7 @@ const db = require('../config/database');
 const starParser = new STARParser();
 
 // POST /api/tools/parse-star
-router.post('/parse-star', async (req, res) => {
+router.post('/parse-star', checkRateLimit , async (req, res) => {
   try {
     const { answer, question_type } = req.body;
 
