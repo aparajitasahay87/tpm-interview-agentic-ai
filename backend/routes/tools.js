@@ -1,5 +1,6 @@
 const express = require('express');
 const { checkRateLimit } = require('../middleware/simpleRateLimiter');
+const ReflectionAgent = require('../agents/tools/ReflectionAgent'); // ⭐ NEW
 const router = express.Router();
 const STARParser = require('../agents/tools/STARParser');
 const SemanticSearch = require('../agents/tools/SemanticSearch');
@@ -9,9 +10,9 @@ const db = require('../config/database');
 const starParser = new STARParser();
 
 // POST /api/tools/parse-star
-router.post('/parse-star', checkRateLimit , async (req, res) => {
+router.post('/parse-star', checkRateLimit, async (req, res) => {
   try {
-    const { answer, question_type } = req.body;
+    const { answer, question_type, userEmail } = req.body; // ⭐ Added userEmail
 
     // Validation
     if (!answer || answer.trim().length < 50) {
@@ -82,6 +83,19 @@ router.post('/parse-star', checkRateLimit , async (req, res) => {
             similarExamples
           );
 
+          // ⭐ NEW: Admin-only reflection
+          const ADMIN_EMAIL = 'aparajita.sahay87@gmail.com';
+          
+          if (userEmail === ADMIN_EMAIL && improvementAnalysis?.improvements) {
+            console.log('🔄 Admin detected - running reflection on improvements...');
+            const refinedImprovements = await ReflectionAgent.reflect(
+              improvementAnalysis.improvements,
+              { answer, userSTAR }
+            );
+            improvementAnalysis.improvements = refinedImprovements;
+            console.log('✅ Reflection complete for admin');
+          }
+
           console.log('✅ Comparison analysis complete');
         } else {
           console.log('⚠️  No similar examples found - generating general feedback');
@@ -99,6 +113,19 @@ router.post('/parse-star', checkRateLimit , async (req, res) => {
             breakdown: star_breakdown
           };
           improvementAnalysis = comparisonAnalyzer.generateGeneralFeedback(userSTAR);
+          
+          // ⭐ NEW: Admin-only reflection (even for general feedback)
+          const ADMIN_EMAIL = 'aparajita.sahay87@gmail.com';
+          
+          if (userEmail === ADMIN_EMAIL && improvementAnalysis?.improvements) {
+            console.log('🔄 Admin detected - running reflection on general feedback...');
+            const refinedImprovements = await ReflectionAgent.reflect(
+              improvementAnalysis.improvements,
+              { answer, userSTAR }
+            );
+            improvementAnalysis.improvements = refinedImprovements;
+            console.log('✅ Reflection complete for admin');
+          }
         }
 
       } catch (ragError) {
@@ -141,7 +168,8 @@ router.post('/parse-star', checkRateLimit , async (req, res) => {
       metadata: {
         execution_time_ms: executionTime,
         rag_enabled: ragEnabled,
-        similar_examples_found: similarExamples.length
+        similar_examples_found: similarExamples.length,
+        reflection_used: userEmail === 'aparajita.sahay87@gmail.com' // ⭐ NEW
       }
     };
 
