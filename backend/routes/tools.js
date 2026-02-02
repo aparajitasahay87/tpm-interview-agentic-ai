@@ -115,7 +115,7 @@ router.post('/parse-star', checkRateLimit, async (req, res) => {
           improvementAnalysis = comparisonAnalyzer.generateGeneralFeedback(userSTAR);
           
           // ⭐ NEW: Admin-only reflection (even for general feedback)
-          const ADMIN_EMAIL = 'aparajita.sahay87@gmail.com';
+          const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
           
           if (userEmail === ADMIN_EMAIL && improvementAnalysis?.improvements) {
             console.log('🔄 Admin detected - running reflection on general feedback...');
