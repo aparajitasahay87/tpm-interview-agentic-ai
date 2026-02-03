@@ -10,9 +10,10 @@ const db = require('../config/database');
 const starParser = new STARParser();
 
 // POST /api/tools/parse-star
+// POST /api/tools/parse-star
 router.post('/parse-star', checkRateLimit, async (req, res) => {
   try {
-    const { answer, question_type, userEmail } = req.body; // ⭐ Added userEmail
+    const { answer, question_type, userEmail } = req.body;
 
     // Validation
     if (!answer || answer.trim().length < 50) {
@@ -21,11 +22,41 @@ router.post('/parse-star', checkRateLimit, async (req, res) => {
       });
     }
 
-    console.log('📝 Parsing answer...');
+    console.log('📝 Starting parallel agent analysis...');
     const startTime = Date.now();
 
-    // Step 1: Parse with STAR tool (Week 1 - always runs)
-    const starResult = await starParser.parse(answer);
+    // Check if RAG features are enabled
+    const ragEnabled = process.env.ENABLE_RAG_FEATURES === 'true';
+
+    // ⭐ OPTIMIZATION 1: Run Agent 1 (STAR Parser) and Agent 2 (Semantic Search) in PARALLEL
+    let starResult;
+    let similarExamples = [];
+
+    if (ragEnabled) {
+      console.log('🤖 Running agents in parallel: STAR Parser + Semantic Search...');
+      
+      try {
+        const semanticSearch = new SemanticSearch();
+        
+        [starResult, similarExamples] = await Promise.all([
+          starParser.parse(answer),  // Agent 1
+          semanticSearch.findSimilarAnswers(answer, question_type).catch(err => {
+            console.error('⚠️ Semantic search failed:', err.message);
+            return []; // Graceful degradation - return empty array on error
+          })
+        ]);
+        
+        console.log(`✅ Parallel execution complete - Found ${similarExamples.length} similar examples`);
+      } catch (parallelError) {
+        console.error('⚠️ Parallel execution error, falling back to STAR only:', parallelError.message);
+        // Fallback: run STAR only if parallel execution fails
+        starResult = await starParser.parse(answer);
+        similarExamples = [];
+      }
+    } else {
+      console.log('ℹ️ RAG disabled - running STAR Parser only...');
+      starResult = await starParser.parse(answer);
+    }
 
     // Transform STARParser output to expected format
     const scores = {
@@ -45,95 +76,63 @@ router.post('/parse-star', checkRateLimit, async (req, res) => {
 
     console.log(`✅ STAR parsed - Overall score: ${overall_score.toFixed(1)}/5`);
 
-    // Check if RAG features are enabled
-    const ragEnabled = process.env.ENABLE_RAG_FEATURES === 'true';
-    
-    let similarExamples = [];
+    // Prepare user STAR data for Agent 3 (from Agent 1 output)
+    const userSTAR = {
+      scores: {
+        situation: scores.situation,
+        task: scores.task,
+        action: scores.action,
+        result: scores.result,
+        overall: overall_score
+      },
+      breakdown: star_breakdown
+    };
+
+    // Step 3: Agent 3 (Comparison Analyzer) uses outputs from Agent 1 & Agent 2
     let improvementAnalysis = null;
 
     if (ragEnabled) {
-      console.log('🤖 RAG features enabled - running semantic search and comparison...');
-
       try {
-        // Step 2: Semantic Search (Week 2 Day 3)
-        const semanticSearch = new SemanticSearch();
-        similarExamples = await semanticSearch.findSimilarAnswers(answer, question_type);
-        
-        console.log(`✅ Found ${similarExamples.length} similar examples`);
+        const comparisonAnalyzer = new ComparisonAnalyzer();
 
-        // Step 3: Comparison Analysis (Week 2 Day 4)
         if (similarExamples.length > 0) {
-          const comparisonAnalyzer = new ComparisonAnalyzer();
+          // Scenario 1: Agent 2 found results → comparison analysis with context
+          console.log('📊 Agent 3: Running comparison analysis with Agent 1 + Agent 2 outputs...');
           
-          // Prepare user STAR data for comparison
-          const userSTAR = {
-            scores: {
-              situation: scores.situation,
-              task: scores.task,
-              action: scores.action,
-              result: scores.result,
-              overall: overall_score
-            },
-            breakdown: star_breakdown
-          };
-
           improvementAnalysis = await comparisonAnalyzer.analyzeGaps(
             answer,
-            userSTAR,
-            similarExamples
+            userSTAR,        // ← Context from Agent 1 (STAR Parser)
+            similarExamples  // ← Context from Agent 2 (Semantic Search)
           );
 
-          // ⭐ NEW: Admin-only reflection
-          const ADMIN_EMAIL = 'aparajita.sahay87@gmail.com';
-          
-          if (userEmail === ADMIN_EMAIL && improvementAnalysis?.improvements) {
-            console.log('🔄 Admin detected - running reflection on improvements...');
-            const refinedImprovements = await ReflectionAgent.reflect(
-              improvementAnalysis.improvements,
-              { answer, userSTAR }
-            );
-            improvementAnalysis.improvements = refinedImprovements;
-            console.log('✅ Reflection complete for admin');
-          }
-
-          console.log('✅ Comparison analysis complete');
+          console.log('✅ Agent 3: Comparison analysis complete (with similar examples)');
         } else {
-          console.log('⚠️  No similar examples found - generating general feedback');
+          // Scenario 2 & 3: No results or Agent 2 failed → STAR-only feedback
+          console.log('⚠️ Agent 3: No similar examples - generating STAR-based feedback only...');
           
-          // Generate general feedback when no similar examples
-          const comparisonAnalyzer = new ComparisonAnalyzer();
-          const userSTAR = {
-            scores: {
-              situation: scores.situation,
-              task: scores.task,
-              action: scores.action,
-              result: scores.result,
-              overall: overall_score
-            },
-            breakdown: star_breakdown
-          };
           improvementAnalysis = comparisonAnalyzer.generateGeneralFeedback(userSTAR);
-          
-          // ⭐ NEW: Admin-only reflection (even for general feedback)
-          const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-          
-          if (userEmail === ADMIN_EMAIL && improvementAnalysis?.improvements) {
-            console.log('🔄 Admin detected - running reflection on general feedback...');
-            const refinedImprovements = await ReflectionAgent.reflect(
-              improvementAnalysis.improvements,
-              { answer, userSTAR }
-            );
-            improvementAnalysis.improvements = refinedImprovements;
-            console.log('✅ Reflection complete for admin');
-          }
+          console.log('✅ Agent 3: General feedback complete (STAR-only context)');
+        }
+
+        // ⭐ Admin-only reflection (optional Agent 4)
+        const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'aparajita.sahay87@gmail.com';
+        
+        if (userEmail === ADMIN_EMAIL && improvementAnalysis?.improvements) {
+          console.log('🔄 Agent 4: Admin detected - running reflection...');
+          const refinedImprovements = await ReflectionAgent.reflect(
+            improvementAnalysis.improvements,
+            { answer, userSTAR }
+          );
+          improvementAnalysis.improvements = refinedImprovements;
+          console.log('✅ Agent 4: Reflection complete');
         }
 
       } catch (ragError) {
-        console.error('⚠️  RAG features error (graceful degradation):', ragError.message);
+        console.error('⚠️ RAG features error (graceful degradation):', ragError.message);
         // Continue without RAG features - return just STAR analysis
       }
     } else {
-      console.log('ℹ️  RAG features disabled - returning STAR analysis only');
+      console.log('ℹ️ RAG features disabled - skipping Agent 3');
     }
 
     const executionTime = Date.now() - startTime;
@@ -169,7 +168,7 @@ router.post('/parse-star', checkRateLimit, async (req, res) => {
         execution_time_ms: executionTime,
         rag_enabled: ragEnabled,
         similar_examples_found: similarExamples.length,
-        reflection_used: userEmail === 'aparajita.sahay87@gmail.com' // ⭐ NEW
+        reflection_used: userEmail === (process.env.ADMIN_EMAIL || 'aparajita.sahay87@gmail.com')
       }
     };
 
@@ -186,7 +185,7 @@ router.post('/parse-star', checkRateLimit, async (req, res) => {
         'success'
       ]);
     } catch (dbError) {
-      console.error('⚠️  Failed to log to database:', dbError.message);
+      console.error('⚠️ Failed to log to database:', dbError.message);
       // Don't fail the request if logging fails
     }
 
@@ -220,5 +219,4 @@ router.post('/parse-star', checkRateLimit, async (req, res) => {
     });
   }
 });
-
 module.exports = router;
