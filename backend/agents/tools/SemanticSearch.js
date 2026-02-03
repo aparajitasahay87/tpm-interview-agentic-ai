@@ -1,6 +1,7 @@
 const { getPineconeClient } = require('../../config/pinecone');
 const { getPool } = require('../../config/database');
 const EmbeddingGenerator = require('./EmbeddingGenerator');
+const EmbeddingCache = require('./EmbeddingCache'); // ⭐ NEW
 
 /**
  * SemanticSearch Tool
@@ -9,17 +10,51 @@ const EmbeddingGenerator = require('./EmbeddingGenerator');
  * Purpose: Given a user's answer, find the 3 most similar high-quality examples
  * to help them understand what excellent answers look like
  */
+
+// ⭐ SINGLETON: Create cache once, share across all instances
+const sharedCache = new EmbeddingCache({
+  maxSize: 100,
+  ttl: 24 * 60 * 60 * 1000
+});
+
 class SemanticSearch {
   constructor() {
     this.embeddingGenerator = new EmbeddingGenerator();
-    this.minSimilarityThreshold = 0.5; // 70% minimum similarity
-    this.topK = 3; // Return top 3 matches
+    this.minSimilarityThreshold = 0.5;
+    this.topK = 3;
+
+    // ⭐ Use shared cache instead of instance cache
+    this.embeddingCache = sharedCache;
+    
+  }
+
+  /**
+   * ⭐ UPDATED: Get embedding with production-ready caching
+   * @param {string} text - Text to embed
+   * @returns {Promise<Array>} Embedding vector
+   */
+  async getEmbeddingWithCache(text) {
+    // Try cache first
+    const cachedEmbedding = this.embeddingCache.get(text);
+    
+    if (cachedEmbedding) {
+      return cachedEmbedding;
+    }
+    
+    // Cache miss - generate new embedding
+    console.log('🔄 Cache miss - generating new embedding');
+    const embedding = await this.embeddingGenerator.generateEmbedding(text);
+    
+    // Store in cache
+    this.embeddingCache.set(text, embedding);
+    
+    return embedding;
   }
 
   /**
    * Find similar answers to the user's input
    * @param {string} userAnswer - The user's answer text
-   * @param {string} questionType - Optional filter by question type (leadership, conflict, etc.)
+   * @param {string} questionType - Optional filter by question type
    * @returns {Promise<Array>} Array of similar examples with metadata
    */
   async findSimilarAnswers(userAnswer, questionType = null) {
@@ -28,8 +63,8 @@ class SemanticSearch {
       console.log('User answer length:', userAnswer.length);
       console.log('Question type filter:', questionType || 'none');
 
-      // Step 1: Generate embedding for user's answer
-      const userEmbedding = await this.embeddingGenerator.generateEmbedding(userAnswer);
+      // Step 1: Generate embedding with caching
+      const userEmbedding = await this.getEmbeddingWithCache(userAnswer);
       console.log('✅ Generated embedding vector');
 
       // Step 2: Query Pinecone for similar vectors
@@ -159,8 +194,8 @@ class SemanticSearch {
 
         return {
           // Similarity information
-          similarity: Math.round(match.score * 100), // Convert 0-1 to percentage
-          similarity_score: match.score, // Keep raw score
+          similarity: Math.round(match.score * 100),
+          similarity_score: match.score,
           
           // Database information
           id: dbRecord.id,
@@ -190,7 +225,7 @@ class SemanticSearch {
           // Additional metadata
           metadata: dbRecord.metadata || {}
         };
-      }).filter(result => result !== null); // Remove any null entries
+      }).filter(result => result !== null);
 
       return enrichedResults;
 
@@ -198,6 +233,21 @@ class SemanticSearch {
       console.error('❌ Database enrichment error:', error);
       throw new Error(`Failed to enrich results: ${error.message}`);
     }
+  }
+
+  /**
+   * ⭐ NEW: Get cache metrics
+   * @returns {Object} Cache statistics
+   */
+  getCacheMetrics() {
+    return this.embeddingCache.getMetrics();
+  }
+
+  /**
+   * ⭐ NEW: Clear cache (useful for testing/admin)
+   */
+  clearCache() {
+    this.embeddingCache.clear();
   }
 
   /**

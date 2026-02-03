@@ -9,6 +9,28 @@ const { getPool } = require('../config/database');
  */
 
 /**
+ * GET /admin/cache-metrics
+ * View embedding cache statistics
+ */
+router.get('/cache-metrics', async (req, res) => {
+  try {
+    const SemanticSearch = require('../agents/tools/SemanticSearch');
+    const semanticSearch = new SemanticSearch();
+    const metrics = semanticSearch.getCacheMetrics();
+    
+    res.json({
+      success: true,
+      cache_metrics: metrics
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /admin/test-pinecone
  * Test Pinecone connection
  */
