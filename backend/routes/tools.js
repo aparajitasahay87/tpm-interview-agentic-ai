@@ -115,7 +115,12 @@ router.post('/parse-star', checkRateLimit, async (req, res) => {
         }
 
         // ⭐ Admin-only reflection (optional Agent 4)
-        const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'aparajita.sahay87@gmail.com';
+  
+        const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+
+        if (!ADMIN_EMAIL) {
+          console.warn('⚠️ ADMIN_EMAIL not set in environment variables');
+        }
         
         if (userEmail === ADMIN_EMAIL && improvementAnalysis?.improvements) {
           console.log('🔄 Agent 4: Admin detected - running reflection...');
@@ -168,7 +173,7 @@ router.post('/parse-star', checkRateLimit, async (req, res) => {
         execution_time_ms: executionTime,
         rag_enabled: ragEnabled,
         similar_examples_found: similarExamples.length,
-        reflection_used: userEmail === (process.env.ADMIN_EMAIL || 'aparajita.sahay87@gmail.com')
+        reflection_used: userEmail === process.env.ADMIN_EMAIL 
       }
     };
 
