@@ -1,5 +1,5 @@
 const OpenAI = require('openai');
-const { CircuitBreaker } = require('../../utils/CircuitBreaker'); // ⭐ NEW
+const { CircuitBreaker } = require('../../utils/CircuitBreaker');
 
 class EmbeddingGenerator {
   constructor() {
@@ -7,8 +7,9 @@ class EmbeddingGenerator {
       apiKey: process.env.OPENAI_API_KEY
     });
     this.model = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
+    this.dimensions = parseInt(process.env.EMBEDDING_DIMENSIONS) || 512; // ⭐ NEW: Default 512
     
-    // ⭐ NEW: Circuit breaker for embedding API
+    // ⭐ Circuit breaker for embedding API
     this.circuitBreaker = new CircuitBreaker({
       failureThreshold: 3,
       recoveryTimeout: 30000,
@@ -19,7 +20,7 @@ class EmbeddingGenerator {
   /**
    * Generate embedding for a single text
    * @param {string} text - Text to embed
-   * @returns {Promise<number[]>} - 1536-dimensional vector
+   * @returns {Promise<number[]>} - 512-dimensional vector (configurable)
    */
   async generateEmbedding(text) {
     try {
@@ -32,7 +33,8 @@ class EmbeddingGenerator {
         const response = await this.openai.embeddings.create({
           model: this.model,
           input: text.trim(),
-          encoding_format: 'float'
+          encoding_format: 'float',
+          dimensions: this.dimensions  // ⭐ NEW
         });
 
         const embedding = response.data[0].embedding;
@@ -50,8 +52,7 @@ class EmbeddingGenerator {
       if (error.isCircuitBreakerOpen) {
         console.log('🔄 Circuit open - returning zero vector for embeddings');
         // Return zero vector as graceful degradation
-        const dimension = 1536; // Default dimension
-        return new Array(dimension).fill(0);
+        return new Array(this.dimensions).fill(0);  // ⭐ UPDATED
       }
       
       throw error;
@@ -83,7 +84,8 @@ class EmbeddingGenerator {
         const response = await this.openai.embeddings.create({
           model: this.model,
           input: validTexts,
-          encoding_format: 'float'
+          encoding_format: 'float',
+          dimensions: this.dimensions  // ⭐ NEW
         });
 
         const embeddings = response.data.map(item => item.embedding);
@@ -100,8 +102,7 @@ class EmbeddingGenerator {
       // ⭐ Handle circuit breaker open state
       if (error.isCircuitBreakerOpen) {
         console.log('🔄 Circuit open - returning zero vectors for batch embeddings');
-        const dimension = 1536;
-        return validTexts.map(() => new Array(dimension).fill(0));
+        return validTexts.map(() => new Array(this.dimensions).fill(0));  // ⭐ UPDATED
       }
       
       throw error;
