@@ -1,4 +1,5 @@
 const OpenAI = require('openai');
+const { CircuitBreaker } = require('../../utils/CircuitBreaker'); // ⭐ NEW
 
 /**
  * ComparisonAnalyzer Tool
@@ -11,6 +12,13 @@ class ComparisonAnalyzer {
       apiKey: process.env.OPENAI_API_KEY
     });
     this.model = 'gpt-4o'; // GPT-4 Omni model
+    
+    // ⭐ NEW: Circuit breaker for GPT-4 analysis calls
+    this.circuitBreaker = new CircuitBreaker({
+      failureThreshold: 3,
+      recoveryTimeout: 30000,
+      monitoringPeriod: 60000
+    });
   }
 
   /**
@@ -34,7 +42,7 @@ class ComparisonAnalyzer {
       // Build the GPT-4 prompt
       const prompt = this.buildComparisonPrompt(userAnswer, userSTAR, similarExamples);
 
-      // Call GPT-4
+      // Call GPT-4 with circuit breaker protection
       const analysis = await this.callGPT4(prompt);
 
       console.log('✅ Comparison analysis complete');
@@ -42,6 +50,13 @@ class ComparisonAnalyzer {
 
     } catch (error) {
       console.error('❌ Comparison analysis error:', error);
+      
+      // ⭐ Handle circuit breaker open state
+      if (error.isCircuitBreakerOpen) {
+        console.log('🔄 Circuit open - returning general feedback');
+        return this.generateGeneralFeedback(userSTAR);
+      }
+      
       throw new Error(`Comparison analysis failed: ${error.message}`);
     }
   }
@@ -128,38 +143,48 @@ Return ONLY valid JSON in this exact format:
     try {
       console.log('🤖 Calling GPT-4 for analysis...');
 
-      const completion = await this.openai.chat.completions.create({
-        model: this.model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert TPM interview coach. You provide specific, actionable feedback. You always return valid JSON.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
-        response_format: { type: 'json_object' } // Force JSON response
+      // ⭐ Wrap in circuit breaker
+      const analysis = await this.circuitBreaker.execute(async () => {
+        const completion = await this.openai.chat.completions.create({
+          model: this.model,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert TPM interview coach. You provide specific, actionable feedback. You always return valid JSON.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 1500,
+          response_format: { type: 'json_object' } // Force JSON response
+        });
+
+        const responseText = completion.choices[0].message.content;
+        console.log('✅ GPT-4 response received');
+
+        // Parse JSON response
+        const analysis = JSON.parse(responseText);
+
+        // Validate structure
+        if (!analysis.gaps || !analysis.improvements) {
+          throw new Error('Invalid response format from GPT-4');
+        }
+
+        return analysis;
       });
-
-      const responseText = completion.choices[0].message.content;
-      console.log('✅ GPT-4 response received');
-
-      // Parse JSON response
-      const analysis = JSON.parse(responseText);
-
-      // Validate structure
-      if (!analysis.gaps || !analysis.improvements) {
-        throw new Error('Invalid response format from GPT-4');
-      }
-
+      
       return analysis;
 
     } catch (error) {
       console.error('❌ GPT-4 API error:', error);
+      
+      // ⭐ Handle circuit breaker open
+      if (error.isCircuitBreakerOpen) {
+        throw error; // Let parent handler deal with it
+      }
       
       // If JSON parsing fails, try to extract JSON from response
       if (error.message.includes('JSON')) {

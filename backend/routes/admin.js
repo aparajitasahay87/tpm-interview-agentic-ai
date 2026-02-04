@@ -125,4 +125,35 @@ router.get('/health', async (req, res) => {
   }
 });
 
+/**
+ * GET /admin/circuit-breaker-status
+ * View circuit breaker status for all OpenAI integrations
+ */
+router.get('/circuit-breaker-status', async (req, res) => {
+  try {
+    const STARParser = require('../agents/tools/STARParser');
+    const EmbeddingGenerator = require('../agents/tools/EmbeddingGenerator');
+    const ComparisonAnalyzer = require('../agents/tools/ComparisonAnalyzer');
+    
+    const starParser = new STARParser();
+    const embeddingGen = new EmbeddingGenerator();
+    const comparisonAnalyzer = new ComparisonAnalyzer();
+    
+    res.json({
+      success: true,
+      circuit_breakers: {
+        star_parser: starParser.circuitBreaker.getMetrics(),
+        embedding_generator: embeddingGen.circuitBreaker.getMetrics(),
+        comparison_analyzer: comparisonAnalyzer.circuitBreaker.getMetrics()
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
