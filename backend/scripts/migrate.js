@@ -12,10 +12,10 @@ async function runMigration() {
 });
   
   try {
-    console.log('🔄 Running migration: 002_add_rag_fields.sql...');
+    console.log('🔄 Running migration: 005_create_categories_system...');
     
     const migrationSQL = fs.readFileSync(
-      path.join(__dirname, '../db/migrations/002_add_rag_fields.sql'),
+      path.join(__dirname, '../db/migrations/005_create_categories_system.sql'),
       'utf8'
     );
     
@@ -29,5 +29,6 @@ async function runMigration() {
     await pool.end();
   }
 }
+
 
 runMigration();
