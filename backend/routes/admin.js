@@ -156,4 +156,64 @@ router.get('/circuit-breaker-status', async (req, res) => {
   }
 });
 
+/**
+ * GET /admin/tables
+ * List all tables in database
+ */
+router.get('/tables', async (req, res) => {
+  try {
+    const pool = getPool();
+    const result = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `);
+    
+    res.json({
+      success: true,
+      tables: result.rows.map(r => r.table_name)
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /admin/rubrics
+ * View all rubrics
+ */
+router.get('/rubrics', async (req, res) => {
+  try {
+    const pool = getPool();
+    const result = await pool.query(`
+      SELECT 
+        r.id,
+        r.category_id,
+        c.name as category_name,
+        r.competency_name,
+        LEFT(r.level_1_description, 100) as level_1_preview,
+        LEFT(r.level_3_description, 100) as level_3_preview,
+        LEFT(r.level_5_description, 100) as level_5_preview,
+        r.weight
+      FROM rubrics r
+      JOIN categories c ON c.id = r.category_id
+      ORDER BY c.name, r.competency_name
+    `);
+    
+    res.json({
+      success: true,
+      count: result.rows.length,
+      rubrics: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 module.exports = router;
