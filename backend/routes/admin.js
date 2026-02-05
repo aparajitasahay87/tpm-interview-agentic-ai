@@ -594,4 +594,104 @@ router.get('/pinecone-test', async (req, res) => {
     });
   }
 });
+
+/**
+ * POST /admin/setup-production
+ * One-time setup for production database
+ * WARNING: This should be protected and removed after use!
+ */
+router.post('/setup-production', async (req, res) => {
+  try {
+    const { secret } = req.body;
+    
+    // Simple protection - use a secret key
+    if (secret !== process.env.SETUP_SECRET) {
+      return res.status(403).json({
+        success: false,
+        error: 'Invalid setup secret'
+      });
+    }
+    
+    const pool = getPool();
+    const results = [];
+    
+    // Step 1: Check if migrations already run
+    const tablesCheck = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name = 'categories'
+    `);
+    
+    if (tablesCheck.rows.length > 0) {
+      results.push('⚠️  Categories table already exists - skipping category migration');
+    } else {
+      // Run category migration
+      const fs = require('fs');
+      const path = require('path');
+      
+      const migrationSQL = fs.readFileSync(
+        path.join(__dirname, '../db/migrations/005_create_categories_system.sql'),
+        'utf8'
+      );
+      
+      await pool.query(migrationSQL);
+      results.push('✅ Category tables created');
+    }
+    
+    // Step 2: Check and seed categories
+    const categoriesCount = await pool.query('SELECT COUNT(*) FROM categories');
+    
+    if (parseInt(categoriesCount.rows[0].count) === 0) {
+      // Seed categories
+      const categories = [
+        { name: 'Program Sense', description: 'Program kickoff, MVP scoping, risk mitigation, execution, prioritization, and strategic influence', icon: '📊', competencies: ['Program Kickoff', 'Risk Mitigation', 'Execution', 'Prioritization', 'Strategic Influence', 'Communication'] },
+        { name: 'System Design', description: 'Scalability, reliability, trade-offs, data modeling, and technical architecture decisions', icon: '🏗️', competencies: ['Scalability', 'Trade-offs', 'Components', 'Data Flow', 'Reliability'] },
+        { name: 'Behavioral', description: 'Leadership, failure recovery, conflict resolution, cross-functional collaboration, and adaptability', icon: '👥', competencies: ['Leadership', 'Conflict Resolution', 'Influence', 'Ownership', 'Communication', 'Adaptability'] },
+        { name: 'Technical', description: 'Problem-solving, code quality, complexity analysis, debugging, and technical decision making', icon: '💻', competencies: ['Problem Solving', 'Code Quality', 'Complexity Analysis', 'Debugging'] },
+        { name: 'Partnership', description: 'Cross-functional influence, negotiation, stakeholder management, and alignment building', icon: '🤝', competencies: ['Influence', 'Negotiation', 'Communication', 'Cross-functional Alignment', 'Stakeholder Management'] }
+      ];
+      
+      for (const cat of categories) {
+        await pool.query(`
+          INSERT INTO categories (name, description, icon, competencies)
+          VALUES ($1, $2, $3, $4)
+        `, [cat.name, cat.description, cat.icon, JSON.stringify(cat.competencies)]);
+      }
+      
+      results.push('✅ 5 categories seeded');
+    } else {
+      results.push(`⚠️  Categories already exist (${categoriesCount.rows[0].count}) - skipping`);
+    }
+    
+    // Step 3: Get final counts
+    const finalCounts = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM categories) as categories,
+        (SELECT COUNT(*) FROM rubrics) as rubrics,
+        (SELECT COUNT(*) FROM questions) as questions,
+        (SELECT COUNT(*) FROM sample_answers) as samples
+    `);
+    
+    results.push(`\n📊 Database Status:`);
+    results.push(`   Categories: ${finalCounts.rows[0].categories}`);
+    results.push(`   Rubrics: ${finalCounts.rows[0].rubrics}`);
+    results.push(`   Questions: ${finalCounts.rows[0].questions}`);
+    results.push(`   Sample Answers: ${finalCounts.rows[0].samples}`);
+    
+    res.json({
+      success: true,
+      message: 'Production setup complete',
+      results: results
+    });
+    
+  } catch (error) {
+    console.error('❌ Setup failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
 module.exports = router;
