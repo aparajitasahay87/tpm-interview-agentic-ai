@@ -11,15 +11,17 @@ router.get('/', async (req, res) => {
     const pool = getPool();
     const result = await pool.query(`
       SELECT 
-        id,
-        name,
-        description,
-        icon,
-        competencies,
-        question_count,
-        created_at
-      FROM categories
-      ORDER BY id
+        c.id,
+        c.name,
+        c.description,
+        c.icon,
+        c.competencies,
+        c.created_at,
+        COUNT(q.id) as question_count
+      FROM categories c
+      LEFT JOIN questions q ON q.category_id = c.id
+      GROUP BY c.id
+      ORDER BY c.id
     `);
     
     res.json({
@@ -46,15 +48,17 @@ router.get('/:id', async (req, res) => {
     
     const result = await pool.query(`
       SELECT 
-        id,
-        name,
-        description,
-        icon,
-        competencies,
-        question_count,
-        created_at
-      FROM categories
-      WHERE id = $1
+        c.id,
+        c.name,
+        c.description,
+        c.icon,
+        c.competencies,
+        c.created_at,
+        COUNT(q.id) as question_count
+      FROM categories c
+      LEFT JOIN questions q ON q.category_id = c.id
+      WHERE c.id = $1
+      GROUP BY c.id
     `, [id]);
     
     if (result.rows.length === 0) {
@@ -108,6 +112,86 @@ router.get('/:id/rubrics', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch rubrics'
+    });
+  }
+});
+
+/**
+ * GET /api/categories/:id/questions/random
+ * Get a random question from a category
+ */
+router.get('/:id/questions/random', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    
+    // Get random question from category
+    const result = await pool.query(`
+      SELECT 
+        id,
+        category_id,
+        question_text,
+        difficulty,
+        tags,
+        created_at
+      FROM questions 
+      WHERE category_id = $1 
+      ORDER BY RANDOM() 
+      LIMIT 1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No questions found for this category'
+      });
+    }
+    
+    res.json({
+      success: true,
+      question: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Error fetching random question:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch random question'
+    });
+  }
+});
+
+/**
+ * GET /api/categories/:id/questions
+ * Get all questions for a category (for future browse feature)
+ */
+router.get('/:id/questions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    
+    const result = await pool.query(`
+      SELECT 
+        id,
+        category_id,
+        question_text,
+        difficulty,
+        tags,
+        created_at
+      FROM questions 
+      WHERE category_id = $1 
+      ORDER BY difficulty DESC, id
+    `, [id]);
+    
+    res.json({
+      success: true,
+      count: result.rows.length,
+      questions: result.rows
+    });
+  } catch (error) {
+    console.error('❌ Error fetching questions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch questions'
     });
   }
 });
