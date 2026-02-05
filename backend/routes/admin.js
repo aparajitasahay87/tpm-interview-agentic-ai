@@ -755,6 +755,36 @@ router.post('/setup-production', async (req, res) => {
     } catch (error) {
       results.push(`❌ Step 4 failed: ${error.message}`);
     }
+
+    // =============================================
+    // STEP 5: Seed Questions (Reuse existing script)
+    // =============================================
+    try {
+      const questionsCount = await pool.query('SELECT COUNT(*) FROM questions');
+      
+      if (parseInt(questionsCount.rows[0].count) < 45) {
+        console.log('📝 Running questions seed script...');
+        
+        // Close current pool temporarily
+        const currentPool = pool;
+        
+        // Run the seed script (it creates its own pool)
+        const path = require('path');
+        const seedQuestionsPath = path.join(__dirname, '../scripts/seed_questions.js');
+        delete require.cache[require.resolve(seedQuestionsPath)];
+        
+        const seedQuestions = require(seedQuestionsPath);
+        await seedQuestions();
+        
+        const newCount = await currentPool.query('SELECT COUNT(*) FROM questions');
+        results.push(`✅ Step 5: ${newCount.rows[0].count} questions seeded`);
+      } else {
+        results.push(`⚠️  Step 5: ${questionsCount.rows[0].count} questions exist`);
+      }
+    } catch (error) {
+      results.push(`❌ Step 5 failed: ${error.message}`);
+      console.error('Question seeding error:', error);
+    }
     
     // =============================================
     // FINAL: Database Status
