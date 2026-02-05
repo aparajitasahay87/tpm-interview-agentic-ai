@@ -216,4 +216,347 @@ router.get('/rubrics', async (req, res) => {
     });
   }
 });
+
+/**
+ * POST /admin/questions
+ * Add a new question
+ */
+router.post('/questions', async (req, res) => {
+  try {
+    const { category_id, question_text, difficulty, tags, question_type_id } = req.body;
+    
+    // Validation
+    if (!category_id || !question_text || !difficulty) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: category_id, question_text, difficulty'
+      });
+    }
+    
+    // Validate difficulty
+    const validDifficulties = ['Easy', 'Medium', 'Hard'];
+    if (!validDifficulties.includes(difficulty)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Difficulty must be Easy, Medium, or Hard'
+      });
+    }
+    
+    const pool = getPool();
+    const result = await pool.query(`
+      INSERT INTO questions (category_id, question_type_id, question_text, difficulty, tags)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [category_id, question_type_id || null, question_text, difficulty, tags || []]);
+    
+    console.log(`✅ Admin added question: ${question_text.substring(0, 50)}...`);
+    
+    res.json({
+      success: true,
+      question: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Error adding question:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /admin/questions
+ * List all questions
+ */
+router.get('/questions', async (req, res) => {
+  try {
+    const { category_id, difficulty } = req.query;
+    const pool = getPool();
+    
+    let query = `
+      SELECT 
+        q.id,
+        q.category_id,
+        c.name as category_name,
+        q.question_text,
+        q.difficulty,
+        q.tags,
+        q.ideal_answer_count,
+        q.created_at
+      FROM questions q
+      JOIN categories c ON c.id = q.category_id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    
+    // Filter by category
+    if (category_id) {
+      params.push(category_id);
+      query += ` AND q.category_id = $${params.length}`;
+    }
+    
+    // Filter by difficulty
+    if (difficulty) {
+      params.push(difficulty);
+      query += ` AND q.difficulty = $${params.length}`;
+    }
+    
+    query += ` ORDER BY c.name, q.difficulty, q.id`;
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      count: result.rows.length,
+      questions: result.rows
+    });
+  } catch (error) {
+    console.error('❌ Error fetching questions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /admin/questions/:id
+ * Get single question
+ */
+router.get('/questions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    
+    const result = await pool.query(`
+      SELECT 
+        q.id,
+        q.category_id,
+        c.name as category_name,
+        q.question_text,
+        q.difficulty,
+        q.tags,
+        q.ideal_answer_count,
+        q.created_at
+      FROM questions q
+      JOIN categories c ON c.id = q.category_id
+      WHERE q.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Question not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      question: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Error fetching question:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * PUT /admin/questions/:id
+ * Update a question
+ */
+router.put('/questions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category_id, question_text, difficulty, tags, question_type_id } = req.body;
+    
+    // Validate difficulty if provided
+    if (difficulty) {
+      const validDifficulties = ['Easy', 'Medium', 'Hard'];
+      if (!validDifficulties.includes(difficulty)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Difficulty must be Easy, Medium, or Hard'
+        });
+      }
+    }
+    
+    const pool = getPool();
+    
+    // Build dynamic update query
+    const updates = [];
+    const params = [];
+    let paramCount = 1;
+    
+    if (category_id !== undefined) {
+      params.push(category_id);
+      updates.push(`category_id = $${paramCount++}`);
+    }
+    if (question_type_id !== undefined) {
+      params.push(question_type_id);
+      updates.push(`question_type_id = $${paramCount++}`);
+    }
+    if (question_text !== undefined) {
+      params.push(question_text);
+      updates.push(`question_text = $${paramCount++}`);
+    }
+    if (difficulty !== undefined) {
+      params.push(difficulty);
+      updates.push(`difficulty = $${paramCount++}`);
+    }
+    if (tags !== undefined) {
+      params.push(tags);
+      updates.push(`tags = $${paramCount++}`);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No fields to update'
+      });
+    }
+    
+    params.push(id);
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    
+    const query = `
+      UPDATE questions
+      SET ${updates.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING *
+    `;
+    
+    const result = await pool.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Question not found'
+      });
+    }
+    
+    console.log(`✅ Admin updated question ID ${id}`);
+    
+    res.json({
+      success: true,
+      question: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Error updating question:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * DELETE /admin/questions/:id
+ * Delete a question
+ */
+router.delete('/questions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    
+    const result = await pool.query(`
+      DELETE FROM questions
+      WHERE id = $1
+      RETURNING id, question_text
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Question not found'
+      });
+    }
+    
+    console.log(`✅ Admin deleted question ID ${id}: ${result.rows[0].question_text.substring(0, 50)}...`);
+    
+    res.json({
+      success: true,
+      message: 'Question deleted',
+      deleted: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Error deleting question:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /admin/questions/bulk
+ * Bulk import questions from array
+ */
+router.post('/questions/bulk', async (req, res) => {
+  try {
+    const { questions } = req.body;
+    
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'questions must be a non-empty array'
+      });
+    }
+    
+    const pool = getPool();
+    const inserted = [];
+    const errors = [];
+    
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      
+      try {
+        const result = await pool.query(`
+          INSERT INTO questions (category_id, question_type_id, question_text, difficulty, tags)
+          VALUES ($1, $2, $3, $4, $5)
+          RETURNING *
+        `, [q.category_id, q.question_type_id || null, q.question_text, q.difficulty, q.tags || []]);
+        
+        inserted.push(result.rows[0]);
+      } catch (error) {
+        errors.push({ index: i, question: q.question_text?.substring(0, 50), error: error.message });
+      }
+    }
+    
+    console.log(`✅ Admin bulk imported ${inserted.length} questions (${errors.length} errors)`);
+    
+    res.json({
+      success: true,
+      inserted_count: inserted.length,
+      error_count: errors.length,
+      inserted: inserted,
+      errors: errors
+    });
+  } catch (error) {
+    console.error('❌ Error in bulk import:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+router.get('/schema/sample_answers', async (req, res) => {
+  try {
+    const pool = getPool();
+    const result = await pool.query(`
+      SELECT column_name, data_type, character_maximum_length
+      FROM information_schema.columns
+      WHERE table_name = 'sample_answers'
+      ORDER BY ordinal_position
+    `);
+    
+    res.json({ success: true, columns: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 module.exports = router;

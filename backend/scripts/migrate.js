@@ -12,10 +12,10 @@ async function runMigration() {
 });
   
   try {
-    console.log('🔄 Running migration: 005_create_categories_system...');
+    console.log('🔄 Running migration: 006_drop_level_constraint.sql...');
     
     const migrationSQL = fs.readFileSync(
-      path.join(__dirname, '../db/migrations/005_create_categories_system.sql'),
+      path.join(__dirname, '../db/migrations/006_drop_level_constraint.sql'),
       'utf8'
     );
     

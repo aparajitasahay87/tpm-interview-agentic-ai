@@ -1,0 +1,1 @@
+ALTER TABLE sample_answers DROP CONSTRAINT IF EXISTS check_level_values;
