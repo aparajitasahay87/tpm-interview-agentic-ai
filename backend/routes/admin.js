@@ -791,4 +791,24 @@ router.post('/admin/setup-production', async (req, res) => {
   }
 });
 
+/**
+ * GET /admin/env-check
+ * Check which environment variables are set
+ */
+router.get('/env-check', (req, res) => {
+  res.json({
+    success: true,
+    environment_variables: {
+      has_openai_key: !!process.env.OPENAI_API_KEY,
+      openai_key_length: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0,
+      has_pinecone_key: !!process.env.PINECONE_API_KEY,
+      has_database_url: !!process.env.DATABASE_URL,
+      has_setup_secret: !!process.env.SETUP_SECRET,
+      has_admin_email: !!process.env.ADMIN_EMAIL,
+      node_env: process.env.NODE_ENV || 'not set',
+      rag_enabled: process.env.ENABLE_RAG_FEATURES
+    }
+  });
+});
+
 module.exports = router;
