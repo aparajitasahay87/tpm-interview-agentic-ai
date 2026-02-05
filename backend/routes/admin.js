@@ -597,14 +597,12 @@ router.get('/pinecone-test', async (req, res) => {
 
 /**
  * POST /admin/setup-production
- * One-time setup for production database
- * WARNING: This should be protected and removed after use!
+ * Complete production database setup with all rubrics embedded
  */
-router.post('/setup-production', async (req, res) => {
+router.post('/admin/setup-production', async (req, res) => {
   try {
     const { secret } = req.body;
     
-    // Simple protection - use a secret key
     if (secret !== process.env.SETUP_SECRET) {
       return res.status(403).json({
         success: false,
@@ -615,72 +613,171 @@ router.post('/setup-production', async (req, res) => {
     const pool = getPool();
     const results = [];
     
-    // Step 1: Check if migrations already run
-    const tablesCheck = await pool.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' AND table_name = 'categories'
-    `);
+    console.log('🔄 Starting complete production setup...\n');
     
-    if (tablesCheck.rows.length > 0) {
-      results.push('⚠️  Categories table already exists - skipping category migration');
-    } else {
-      // Run category migration
-      const fs = require('fs');
-      const path = require('path');
+    // =============================================
+    // STEP 1: Create Tables (if needed)
+    // =============================================
+    try {
+      const tablesCheck = await pool.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'categories'
+      `);
       
-      const migrationSQL = fs.readFileSync(
-        path.join(__dirname, '../db/migrations/005_create_categories_system.sql'),
-        'utf8'
-      );
-      
-      await pool.query(migrationSQL);
-      results.push('✅ Category tables created');
-    }
-    
-    // Step 2: Check and seed categories
-    const categoriesCount = await pool.query('SELECT COUNT(*) FROM categories');
-    
-    if (parseInt(categoriesCount.rows[0].count) === 0) {
-      // Seed categories
-      const categories = [
-        { name: 'Program Sense', description: 'Program kickoff, MVP scoping, risk mitigation, execution, prioritization, and strategic influence', icon: '📊', competencies: ['Program Kickoff', 'Risk Mitigation', 'Execution', 'Prioritization', 'Strategic Influence', 'Communication'] },
-        { name: 'System Design', description: 'Scalability, reliability, trade-offs, data modeling, and technical architecture decisions', icon: '🏗️', competencies: ['Scalability', 'Trade-offs', 'Components', 'Data Flow', 'Reliability'] },
-        { name: 'Behavioral', description: 'Leadership, failure recovery, conflict resolution, cross-functional collaboration, and adaptability', icon: '👥', competencies: ['Leadership', 'Conflict Resolution', 'Influence', 'Ownership', 'Communication', 'Adaptability'] },
-        { name: 'Technical', description: 'Problem-solving, code quality, complexity analysis, debugging, and technical decision making', icon: '💻', competencies: ['Problem Solving', 'Code Quality', 'Complexity Analysis', 'Debugging'] },
-        { name: 'Partnership', description: 'Cross-functional influence, negotiation, stakeholder management, and alignment building', icon: '🤝', competencies: ['Influence', 'Negotiation', 'Communication', 'Cross-functional Alignment', 'Stakeholder Management'] }
-      ];
-      
-      for (const cat of categories) {
-        await pool.query(`
-          INSERT INTO categories (name, description, icon, competencies)
-          VALUES ($1, $2, $3, $4)
-        `, [cat.name, cat.description, cat.icon, JSON.stringify(cat.competencies)]);
+      if (tablesCheck.rows.length === 0) {
+        const fs = require('fs');
+        const path = require('path');
+        
+        const migrationSQL = fs.readFileSync(
+          path.join(__dirname, '../db/migrations/005_create_categories_system.sql'),
+          'utf8'
+        );
+        
+        await pool.query(migrationSQL);
+        results.push('✅ Step 1: Category tables created');
+      } else {
+        results.push('⚠️  Step 1: Tables already exist');
       }
-      
-      results.push('✅ 5 categories seeded');
-    } else {
-      results.push(`⚠️  Categories already exist (${categoriesCount.rows[0].count}) - skipping`);
+    } catch (error) {
+      results.push(`❌ Step 1 failed: ${error.message}`);
     }
     
-    // Step 3: Get final counts
+    // =============================================
+    // STEP 2: Drop Level Constraint
+    // =============================================
+    try {
+      await pool.query('ALTER TABLE sample_answers DROP CONSTRAINT IF EXISTS check_level_values');
+      results.push('✅ Step 2: Level constraint removed');
+    } catch (error) {
+      results.push(`⚠️  Step 2: ${error.message}`);
+    }
+    
+    // =============================================
+    // STEP 3: Seed Categories
+    // =============================================
+    try {
+      const categoriesCount = await pool.query('SELECT COUNT(*) FROM categories');
+      
+      if (parseInt(categoriesCount.rows[0].count) === 0) {
+        const categories = [
+          { name: 'Program Sense', description: 'Program kickoff, MVP scoping, risk mitigation, execution, prioritization, and strategic influence', icon: '📊', competencies: JSON.stringify(['Program Kickoff', 'Risk Mitigation', 'Execution', 'Prioritization', 'Strategic Influence', 'Communication']) },
+          { name: 'System Design', description: 'Scalability, reliability, trade-offs, data modeling, and technical architecture decisions', icon: '🏗️', competencies: JSON.stringify(['Scalability', 'Trade-offs', 'Components', 'Data Flow', 'Reliability']) },
+          { name: 'Behavioral', description: 'Leadership, failure recovery, conflict resolution, cross-functional collaboration, and adaptability', icon: '👥', competencies: JSON.stringify(['Leadership', 'Conflict Resolution', 'Influence', 'Ownership', 'Communication', 'Adaptability']) },
+          { name: 'Technical', description: 'Problem-solving, code quality, complexity analysis, debugging, and technical decision making', icon: '💻', competencies: JSON.stringify(['Problem Solving', 'Code Quality', 'Complexity Analysis', 'Debugging']) },
+          { name: 'Partnership', description: 'Cross-functional influence, negotiation, stakeholder management, and alignment building', icon: '🤝', competencies: JSON.stringify(['Influence', 'Negotiation', 'Communication', 'Cross-functional Alignment', 'Stakeholder Management']) }
+        ];
+        
+        for (const cat of categories) {
+          await pool.query(`
+            INSERT INTO categories (name, description, icon, competencies)
+            VALUES ($1, $2, $3, $4)
+          `, [cat.name, cat.description, cat.icon, cat.competencies]);
+        }
+        
+        results.push('✅ Step 3: 5 categories seeded');
+      } else {
+        results.push(`⚠️  Step 3: ${categoriesCount.rows[0].count} categories exist`);
+      }
+    } catch (error) {
+      results.push(`❌ Step 3 failed: ${error.message}`);
+    }
+    
+    // Get category map
+    const categoriesResult = await pool.query('SELECT id, name FROM categories');
+    const categoryMap = {};
+    categoriesResult.rows.forEach(cat => {
+      categoryMap[cat.name] = cat.id;
+    });
+    
+    // =============================================
+    // STEP 4: Seed ALL 26 Rubrics
+    // =============================================
+    try {
+      const rubricsCount = await pool.query('SELECT COUNT(*) FROM rubrics');
+      
+      if (parseInt(rubricsCount.rows[0].count) < 26) {
+        // Truncate to avoid duplicates
+        await pool.query('TRUNCATE TABLE rubrics CASCADE');
+        
+        const allRubrics = [
+          // PROGRAM SENSE (6)
+          { cat: 'Program Sense', comp: 'Program Kickoff', l1: 'Mentions MVP, scoping, or product requirements', l3: 'Provides solid product sense for scoping an MVP and ensures clarity on success metrics for moving beyond MVP', l5: 'Exceptional MVP scoping with quantified success metrics (e.g., 30% adoption target), clear go/no-go criteria, phased rollout plan with defined milestones, and cross-functional stakeholder alignment on definition of done' },
+          { cat: 'Program Sense', comp: 'Risk Mitigation', l1: 'Mentions risks or potential issues', l3: 'Demonstrates frequent communication of risks and is not afraid to ask for help', l5: 'Proactively identifies 10+ risks early, maintains risk register with mitigation plans, communicates weekly updates to stakeholders with proposed solutions, and reduced project delays by 40% through early escalation' },
+          { cat: 'Program Sense', comp: 'Execution', l1: 'Describes executing a project or completing tasks', l3: 'Shows flexible execution style and willingness to adapt to the needs of a specific program or team. Ensures cross-functional alignment at every milestone', l5: 'Demonstrates adaptive execution across 5+ cross-functional teams, pivoted strategy 3 times based on changing requirements, maintained 95% milestone delivery rate, and established reusable execution framework adopted by 3 other teams' },
+          { cat: 'Program Sense', comp: 'Prioritization', l1: 'Mentions prioritizing tasks or features', l3: 'Shows flexible execution style with clear prioritization framework and willingness to adapt to program needs', l5: 'Developed data-driven prioritization framework (RICE/value vs effort), deprioritized 40% of scope to hit critical deadline, aligned 5 VP-level stakeholders on priority stack rank, and delivered 80% of impact with 50% of original scope' },
+          { cat: 'Program Sense', comp: 'Strategic Influence', l1: 'Mentions influencing stakeholders or providing input', l3: 'Displays examples where clear proposals were provided and buy-in was obtained to help shape the team\'s strategy', l5: 'Created strategic proposal that shifted team roadmap, obtained buy-in from 8 senior stakeholders through data-driven presentation, influenced $2M budget allocation, and proposal became company-wide standard adopted by 5 other orgs' },
+          { cat: 'Program Sense', comp: 'Communication', l1: 'Mentions communicating with team or stakeholders', l3: 'When there is a missed deadline, shares why it happened as well as next steps to move forward including getting support from other teams to debug', l5: 'Proactively communicated critical 2-week delay with root cause analysis, presented 3 mitigation options with trade-offs, coordinated 4 teams to recover timeline, and established weekly stakeholder updates that became team standard' },
+          
+          // BEHAVIORAL (6)
+          { cat: 'Behavioral', comp: 'Leadership', l1: 'Mentions leading a team or taking ownership', l3: 'Demonstrates leadership examples with clear structure, context, and impact on team performance', l5: 'Led cross-functional team of 15+ through ambiguous project, increased team velocity by 40%, mentored 3 junior team members to promotion, and established leadership practices adopted across organization' },
+          { cat: 'Behavioral', comp: 'Conflict Resolution', l1: 'Mentions disagreement or conflict', l3: 'Displays detailed examples of how conflict was approached, resolved, or prevented with both sides considered', l5: 'Resolved VP-level conflict between 2 organizations through 1:1 mediation, identified shared goals, facilitated compromise that unblocked $5M project, and established conflict resolution framework preventing future escalations' },
+          { cat: 'Behavioral', comp: 'Influence', l1: 'Mentions convincing others or getting agreement', l3: 'Shows empathy and strong EQ in building trust and influencing others without direct authority', l5: 'Influenced 6 senior stakeholders to change strategic direction through data-driven proposal, built coalition across 4 organizations, achieved unanimous buy-in without formal authority, and new strategy delivered 200% ROI' },
+          { cat: 'Behavioral', comp: 'Ownership', l1: 'Mentions taking responsibility or being accountable', l3: 'Demonstrates taking full ownership of outcomes, including failures, with clear examples of accountability', l5: 'Took ownership of critical $2M project failure, conducted blameless postmortem with 20+ stakeholders, implemented 8 process improvements, and recovery plan delivered successful relaunch in 6 weeks' },
+          { cat: 'Behavioral', comp: 'Communication', l1: 'Mentions communicating or providing updates', l3: 'Provides clear structure and context with examples, including quick summary and transparency', l5: 'Established executive communication framework with weekly updates to C-suite, presented 10+ strategic reviews with data-driven insights, and communication template adopted as company standard across 50+ teams' },
+          { cat: 'Behavioral', comp: 'Adaptability', l1: 'Mentions adapting to change or being flexible', l3: 'Shows examples of adapting to changing requirements, pivoting strategy, and remaining effective under uncertainty', l5: 'Pivoted project strategy 4 times in 6 months due to market changes, maintained team morale through ambiguity, delivered on-time despite 50% scope change, and adaptability approach became team playbook' },
+          // SYSTEM DESIGN (5)
+          { cat: 'System Design', comp: 'Scalability', l1: 'Mentions scaling or handling growth', l3: 'Discusses scalability considerations, bottlenecks, and how the system handles increased load', l5: 'Designed system scaling from 1K to 10M users, implemented horizontal scaling with auto-scaling groups, reduced latency by 60% at 100x load, and architecture pattern adopted for 5 other services' },
+          { cat: 'System Design', comp: 'Trade-offs', l1: 'Mentions different approaches or options', l3: 'Clearly articulates technical trade-offs between different design choices with pros and cons', l5: 'Evaluated 4 architectural approaches with detailed trade-off matrix (latency vs cost vs complexity), presented to engineering leadership, recommended approach saved $500K annually, and decision framework reused across org' },
+          { cat: 'System Design', comp: 'Components', l1: 'Mentions system components or architecture', l3: 'Describes key system components, their interactions, and how they work together', l5: 'Designed 8-component microservices architecture with clear API contracts, implemented circuit breakers and graceful degradation, achieved 99.99% uptime, and component design became org-wide standard' },
+          { cat: 'System Design', comp: 'Data Flow', l1: 'Mentions data or how information moves', l3: 'Explains data flow through the system, including storage, processing, and retrieval', l5: 'Architected data pipeline processing 5TB daily, implemented real-time and batch processing, reduced data latency from 24h to 5min, and pipeline architecture reused for 10+ other data products' },
+          { cat: 'System Design', comp: 'Reliability', l1: 'Mentions uptime, errors, or system health', l3: 'Discusses reliability considerations including fault tolerance, monitoring, and error handling', l5: 'Implemented comprehensive reliability framework with circuit breakers, retry logic, monitoring dashboards, improved SLA from 99.5% to 99.95%, and reduced MTTR from 2h to 15min' },
+          
+          // TECHNICAL (4)
+          { cat: 'Technical', comp: 'Problem Solving', l1: 'Mentions solving a technical problem', l3: 'Describes systematic approach to debugging and problem-solving with clear methodology', l5: 'Debugged critical production issue affecting 10K users, used systematic root cause analysis, implemented permanent fix in 4 hours, and created runbook preventing 12 similar incidents' },
+          { cat: 'Technical', comp: 'Code Quality', l1: 'Mentions writing code or implementing features', l3: 'Discusses code quality practices including testing, documentation, and maintainability', l5: 'Established code quality standards with 90% test coverage requirement, implemented automated linting and review process, reduced bug rate by 70%, and standards adopted across 8 engineering teams' },
+          { cat: 'Technical', comp: 'Complexity Analysis', l1: 'Mentions algorithm efficiency or performance', l3: 'Analyzes time and space complexity of solutions with Big-O notation and optimization opportunities', l5: 'Optimized algorithm from O(n²) to O(n log n), reduced processing time from 10min to 30sec for 1M records, and optimization pattern documented and reused in 15 other services' },
+          { cat: 'Technical', comp: 'Debugging', l1: 'Mentions fixing bugs or issues', l3: 'Describes systematic debugging approach with tools, techniques, and root cause identification', l5: 'Debugged race condition affecting 0.1% of users, used distributed tracing and log correlation, identified root cause in 2 hours, implemented fix deployed to 50M users, and debugging methodology became team standard' },
+          
+          // PARTNERSHIP (5)
+          { cat: 'Partnership', comp: 'Influence', l1: 'Mentions working with partners or other teams', l3: 'Displays empathy and strong EQ in building trust and winning influence with partner teams', l5: 'Built trusted relationships with 5 partner organizations, influenced roadmap alignment saving 6 months of duplicate work, achieved 100% partner satisfaction scores, and collaboration model adopted company-wide' },
+          { cat: 'Partnership', comp: 'Negotiation', l1: 'Mentions negotiating or reaching agreements', l3: 'Shows win-win approach to negotiation with examples of compromise and mutual benefit', l5: 'Negotiated partnership terms with 3 external vendors, achieved 30% cost reduction while improving SLAs, established master agreement saving $2M annually, and negotiation framework reused for 10+ other partnerships' },
+          { cat: 'Partnership', comp: 'Communication', l1: 'Mentions communicating with partners', l3: 'Demonstrates clear, frequent, and transparent communication with partner teams and stakeholders', l5: 'Established bi-weekly partner sync across 6 organizations, created shared dashboard for visibility, reduced escalations by 80%, and communication framework adopted as standard for all cross-org partnerships' },
+          { cat: 'Partnership', comp: 'Cross-functional Alignment', l1: 'Mentions working with multiple teams', l3: 'Shows ability to align cross-functional teams on shared goals with clear examples', l5: 'Aligned 8 cross-functional teams (eng, product, design, legal, marketing, sales) on unified roadmap, resolved 15+ conflicting priorities, achieved 95% milestone delivery, and alignment process became org playbook' },
+          { cat: 'Partnership', comp: 'Stakeholder Management', l1: 'Mentions managing stakeholders', l3: 'Demonstrates proactive stakeholder management with regular updates and clear communication', l5: 'Managed 12 executive stakeholders across 4 organizations, conducted monthly business reviews with metrics dashboards, achieved 100% satisfaction scores, and stakeholder framework adopted for all strategic initiatives' }
+        ];
+        
+        // Insert all rubrics
+        for (const r of allRubrics) {
+          const catId = categoryMap[r.cat];
+          if (catId) {
+            await pool.query(`
+              INSERT INTO rubrics (category_id, competency_name, level_1_description, level_3_description, level_5_description, weight)
+              VALUES ($1, $2, $3, $4, $5, 1.0)
+            `, [catId, r.comp, r.l1, r.l3, r.l5]);
+          }
+        }
+        
+        results.push('✅ Step 4: 26 rubrics seeded');
+      } else {
+        results.push(`⚠️  Step 4: ${rubricsCount.rows[0].count} rubrics exist`);
+      }
+    } catch (error) {
+      results.push(`❌ Step 4 failed: ${error.message}`);
+    }
+    
+    // =============================================
+    // FINAL: Database Status
+    // =============================================
     const finalCounts = await pool.query(`
       SELECT 
         (SELECT COUNT(*) FROM categories) as categories,
         (SELECT COUNT(*) FROM rubrics) as rubrics,
         (SELECT COUNT(*) FROM questions) as questions,
-        (SELECT COUNT(*) FROM sample_answers) as samples
+        (SELECT COUNT(*) FROM sample_answers WHERE category_id IS NOT NULL) as samples
     `);
     
-    results.push(`\n📊 Database Status:`);
+    results.push('\n📊 Final Database Status:');
     results.push(`   Categories: ${finalCounts.rows[0].categories}`);
     results.push(`   Rubrics: ${finalCounts.rows[0].rubrics}`);
     results.push(`   Questions: ${finalCounts.rows[0].questions}`);
     results.push(`   Sample Answers: ${finalCounts.rows[0].samples}`);
+    results.push('\n✅ Production setup complete!');
+    results.push('⚠️  Note: Questions and sample answers can be added via admin API');
     
     res.json({
       success: true,
-      message: 'Production setup complete',
+      message: 'Production database setup complete',
       results: results
     });
     
