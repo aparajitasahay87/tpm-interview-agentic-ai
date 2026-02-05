@@ -4,7 +4,7 @@ const ReflectionAgent = require('../agents/tools/ReflectionAgent');
 const router = express.Router();
 const SemanticSearch = require('../agents/tools/SemanticSearch');
 const ComparisonAnalyzer = require('../agents/tools/ComparisonAnalyzer');
-const CombinedSTARRubricParser = require('../agents/tools/CombinedSTARRubricParser'); // ⭐ NEW
+const CombinedSTARRubricParser = require('../agents/tools/CombinedSTARRubricParser');
 const db = require('../config/database');
 
 // POST /api/tools/parse-star
@@ -58,7 +58,7 @@ router.post('/parse-star', checkRateLimit, async (req, res) => {
         
         [combinedResult, similarExamples] = await Promise.all([
           combinedParser.parseAndScore(answer, rubrics),  // Agent 1 (STAR + Rubrics combined!)
-          semanticSearch.findSimilarAnswers(answer, question_type).catch(err => {
+          semanticSearch.findSimilarAnswers(answer, category_id).catch(err => {
             console.error('⚠️ Semantic search failed:', err.message);
             return []; // Graceful degradation
           })
