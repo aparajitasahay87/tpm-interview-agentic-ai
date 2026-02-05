@@ -559,4 +559,39 @@ router.get('/schema/sample_answers', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+router.get('/pinecone-test', async (req, res) => {
+  try {
+    const { Pinecone } = require('@pinecone-database/pinecone');
+    const EmbeddingGenerator = require('../agents/tools/EmbeddingGenerator');
+    
+    const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+    const indexName = process.env.PINECONE_INDEX_NAME || 'tpm-interview-answers';
+    const index = pinecone.index(indexName);
+    
+    // Get index stats
+    const stats = await index.describeIndexStats();
+    
+    // Try a simple search without filters
+    const embeddingGen = new EmbeddingGenerator();
+    const testEmbedding = await embeddingGen.generateEmbedding("cloud migration AWS");
+    
+    const searchResults = await index.namespace('').query({
+      vector: testEmbedding,
+      topK: 3,
+      includeMetadata: true
+    });
+    
+    res.json({
+      success: true,
+      stats: stats,
+      searchResults: searchResults.matches
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 module.exports = router;
