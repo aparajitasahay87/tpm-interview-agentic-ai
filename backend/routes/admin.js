@@ -599,7 +599,7 @@ router.get('/pinecone-test', async (req, res) => {
  * POST /admin/setup-production
  * Complete production database setup with all rubrics embedded
  */
-router.post('/admin/setup-production', async (req, res) => {
+router.post('/setup-production', async (req, res) => {
   try {
     const { secret } = req.body;
     
