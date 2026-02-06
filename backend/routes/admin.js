@@ -3,6 +3,15 @@ const router = express.Router();
 const { getPineconeClient } = require('../config/pinecone');
 const { getPool } = require('../config/database');
 
+// ADD THIS HELPER FUNCTION HERE 👇
+/**
+ * Safely parse tags from various formats into an array
+ * Handles: arrays, JSON strings, null, undefined
+ * @param {*} tags - Input tags in any format
+ * @returns {Array} - Always returns an array
+ */
+
+
 /**
  * =============================================================================
  * ADMIN ROUTES - Testing, Debugging, and Data Management
@@ -359,6 +368,15 @@ router.post('/questions/bulk', async (req, res) => {
     
     for (const question of questions) {
       try {
+
+        let tags = question.tags || [];
+if (typeof tags === 'string') {
+  try {
+    tags = JSON.parse(tags);
+  } catch (e) {
+    tags = [];
+  }
+} 
         const result = await pool.query(`
           INSERT INTO questions (
             category_id, question_text, difficulty, tags
@@ -368,7 +386,8 @@ router.post('/questions/bulk', async (req, res) => {
           question.category_id,
           question.question_text,
           question.difficulty || 'Medium',
-          JSON.stringify(question.tags || [])
+         // JSON.stringify(question.tags || [])
+         JSON.stringify(tags)
         ]);
         
         inserted.push(result.rows[0]);
@@ -607,10 +626,25 @@ router.post('/questions', async (req, res) => {
  * PUT /admin/questions/:id
  * Update a question
  */
+
 router.put('/questions/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { question_text, difficulty, tags } = req.body;
+    
+    // Handle tags - parse if string, use as-is if array
+    let processedTags = null;
+    if (tags) {
+      if (typeof tags === 'string') {
+        try {
+          processedTags = JSON.stringify(JSON.parse(tags));
+        } catch (e) {
+          processedTags = JSON.stringify([]);
+        }
+      } else if (Array.isArray(tags)) {
+        processedTags = JSON.stringify(tags);
+      }
+    }
     
     const pool = getPool();
     const result = await pool.query(`
@@ -622,7 +656,7 @@ router.put('/questions/:id', async (req, res) => {
         updated_at = NOW()
       WHERE id = $4
       RETURNING *
-    `, [question_text, difficulty, tags ? JSON.stringify(tags) : null, id]);
+    `, [question_text, difficulty, processedTags, id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -670,6 +704,50 @@ router.delete('/questions/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+/**
+ * POST /admin/seed-questions
+ * Run existing seed_questions.js script
+ */
+router.post('/seed-questions', async (req, res) => {
+  try {
+    const { secret } = req.body;
+    
+    if (secret !== process.env.SETUP_SECRET) {
+      return res.status(403).json({
+        success: false,
+        error: 'Invalid secret'
+      });
+    }
+    
+    const path = require('path');
+    const seedQuestionsPath = path.join(__dirname, '../scripts/seed_questions.js');
+    
+    // Clear require cache to ensure fresh run
+    delete require.cache[require.resolve(seedQuestionsPath)];
+    
+    // Import and run the seed script
+    const seedQuestions = require(seedQuestionsPath);
+    await seedQuestions();
+    
+    const pool = getPool();
+    const count = await pool.query('SELECT COUNT(*) FROM questions');
+    
+    res.json({
+      success: true,
+      message: 'Questions seeded successfully',
+      question_count: count.rows[0].count
+    });
+    
+  } catch (error) {
+    console.error('Seed questions error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
