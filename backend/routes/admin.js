@@ -86,7 +86,7 @@ router.get('/cache-metrics', async (req, res) => {
 router.get('/test-pinecone', async (req, res) => {
   try {
     const pinecone = await getPineconeClient();
-    const index = pinecone.index(process.env.PINECONE_INDEX_NAME || 'tpm-interview-answers');
+    const index = pinecone.index(process.env.PINECONE_INDEX_NAME || 'tpm-interview-examples');
     const stats = await index.describeIndexStats();
     
     res.json({
@@ -95,7 +95,7 @@ router.get('/test-pinecone', async (req, res) => {
       stats: {
         totalVectors: stats.totalRecordCount || 0,
         dimension: stats.dimension || 1536,
-        indexName: process.env.PINECONE_INDEX_NAME || 'tpm-interview-answers'
+        indexName: process.env.PINECONE_INDEX_NAME || 'tpm-interview-examples'
       }
     });
   } catch (error) {
@@ -801,6 +801,67 @@ router.post('/setup-production', async (req, res) => {
       success: false,
       error: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
+ * GET /admin/pinecone-query-test
+ * Test raw Pinecone query to debug semantic search
+ */
+router.get('/pinecone-query-test', async (req, res) => {
+  try {
+    const { Pinecone } = require('@pinecone-database/pinecone');
+    const EmbeddingGenerator = require('../agents/tools/EmbeddingGenerator');
+    
+    const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+    const index = pinecone.index(process.env.PINECONE_INDEX_NAME || 'tpm-interview-examples');
+    
+    // Generate simple embedding
+    const embeddingGen = new EmbeddingGenerator();
+    const testEmbedding = await embeddingGen.generateEmbedding("cloud migration project");
+    
+    // Query WITHOUT filter
+    const resultsNoFilter = await index.namespace('').query({
+      vector: testEmbedding,
+      topK: 3,
+      includeMetadata: true
+    });
+    
+    // Query WITH filter  
+    const resultsWithFilter = await index.namespace('').query({
+      vector: testEmbedding,
+      topK: 3,
+      includeMetadata: true,
+      filter: {
+        category_id: 1
+      }
+    });
+    
+    res.json({
+      success: true,
+      without_filter: {
+        count: resultsNoFilter.matches.length,
+        matches: resultsNoFilter.matches.map(m => ({
+          id: m.id,
+          score: m.score,
+          metadata: m.metadata
+        }))
+      },
+      with_filter: {
+        count: resultsWithFilter.matches.length,
+        matches: resultsWithFilter.matches.map(m => ({
+          id: m.id,
+          score: m.score,
+          metadata: m.metadata
+        }))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
     });
   }
 });

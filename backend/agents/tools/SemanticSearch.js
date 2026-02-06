@@ -10,7 +10,7 @@ class SemanticSearch {
       apiKey: process.env.PINECONE_API_KEY
     });
     
-    this.indexName = process.env.PINECONE_INDEX_NAME || 'tpm-interview-answers';
+    this.indexName = process.env.PINECONE_INDEX_NAME || 'tpm-interview-examples';
     this.index = this.pinecone.index(this.indexName);
     
     // Initialize embedding generator with cache
@@ -59,6 +59,9 @@ class SemanticSearch {
       
       // Step 3: Get sample IDs from Pinecone results
       const sampleIds = results.matches.map(match => match.metadata.sample_id);
+
+      // ADD THIS:
+      console.log(`🔍 Extracted sample IDs from Pinecone:`, sampleIds);
       
       // Step 4: Fetch full sample answers from PostgreSQL
       const sampleAnswers = await db.query(`
@@ -81,6 +84,10 @@ class SemanticSearch {
         FROM sample_answers
         WHERE id = ANY($1)
       `, [sampleIds]);
+
+      // ADD THIS:
+console.log(`📊 PostgreSQL returned ${sampleAnswers.rows.length} rows for IDs:`, sampleIds);
+console.log(`📊 Row data:`, sampleAnswers.rows);
       
       // Step 5: Combine Pinecone similarity scores with PostgreSQL data
       const enrichedResults = results.matches.map(match => {

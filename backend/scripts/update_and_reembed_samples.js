@@ -70,7 +70,7 @@ async function updateAndReembedSamples() {
       apiKey: process.env.PINECONE_API_KEY
     });
     
-    const indexName = process.env.PINECONE_INDEX_NAME || 'tpm-interview-answers';
+    const indexName = process.env.PINECONE_INDEX_NAME || 'tpm-interview-examples';
     const index = pinecone.index(indexName);
     
     // Get ALL sample answers

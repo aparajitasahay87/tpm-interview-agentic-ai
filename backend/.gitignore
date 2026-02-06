@@ -1,3 +1,6 @@
 *.backup
 test.json
 checkTable.js
+questions_export.json
+rubrics_export.json
+*_export.json

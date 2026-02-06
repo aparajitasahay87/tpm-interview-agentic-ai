@@ -22,6 +22,13 @@ class EmbeddingCache {
     };
   }
 
+  static getInstance(options = {}) {
+    if (!EmbeddingCache.instance) {
+      EmbeddingCache.instance = new EmbeddingCache(options);
+    }
+    return EmbeddingCache.instance;
+  }
+
   /**
    * Generate hash with SHA-256 (Fix #5 - collision resistance)
    * @param {string} text - Text to hash
