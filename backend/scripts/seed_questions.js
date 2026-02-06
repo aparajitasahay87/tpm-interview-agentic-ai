@@ -323,10 +323,21 @@ async function seedQuestions() {
   } catch (error) {
     console.error('❌ Seeding failed:', error.message);
     console.error('Full error:', error);
-    process.exit(1);
+    throw error; // Re-throw so the calling code knows it failed
   } finally {
     await pool.end();
   }
 }
 
-seedQuestions();
+// Export the function for use as a module
+module.exports = seedQuestions;
+
+// If run directly (not imported), execute the function
+if (require.main === module) {
+  seedQuestions()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error('Fatal error:', error);
+      process.exit(1);
+    });
+}

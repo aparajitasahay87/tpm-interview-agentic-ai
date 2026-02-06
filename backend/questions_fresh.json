@@ -1,0 +1,2182 @@
+{
+  "success": true,
+  "count": 136,
+  "questions": [
+    {
+      "id": 13,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you took a big risk and it failed. What did you learn? What would you do differently?",
+      "difficulty": "Medium",
+      "tags": [
+        "failure",
+        "risk",
+        "learning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.185Z",
+      "updated_at": "2026-02-04T23:36:24.185Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 14,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Give me an example of a significant professional failure. What did you learn from this situation?",
+      "difficulty": "Medium",
+      "tags": [
+        "failure",
+        "learning",
+        "growth"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.186Z",
+      "updated_at": "2026-02-04T23:36:24.186Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 15,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you made a significant mistake. What led you to making the wrong decision?",
+      "difficulty": "Medium",
+      "tags": [
+        "mistake",
+        "decision_making",
+        "reflection"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.186Z",
+      "updated_at": "2026-02-04T23:36:24.186Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 16,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Give an example of a tough or critical piece of feedback you received. What was it and what did you do about it?",
+      "difficulty": "Medium",
+      "tags": [
+        "feedback",
+        "growth",
+        "adaptation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.187Z",
+      "updated_at": "2026-02-04T23:36:24.187Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 17,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you strongly disagreed with your manager on something you deemed very important to the business.",
+      "difficulty": "Hard",
+      "tags": [
+        "conflict",
+        "disagreement",
+        "conviction"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.188Z",
+      "updated_at": "2026-02-04T23:36:24.188Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 18,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you had significant, unanticipated obstacles to overcome in achieving a key goal. Were you eventually successful?",
+      "difficulty": "Medium",
+      "tags": [
+        "obstacles",
+        "persistence",
+        "problem_solving"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.189Z",
+      "updated_at": "2026-02-04T23:36:24.189Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 19,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a time where you felt really strongly about something but ultimately lost the argument. How hard did you press the issue?",
+      "difficulty": "Medium",
+      "tags": [
+        "conflict",
+        "conviction",
+        "compromise"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.19Z",
+      "updated_at": "2026-02-04T23:36:24.19Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 20,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time where someone has openly challenged you. How did you handle this feedback?",
+      "difficulty": "Medium",
+      "tags": [
+        "challenge",
+        "feedback",
+        "conflict_resolution"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.191Z",
+      "updated_at": "2026-02-04T23:36:24.191Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 21,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you didn't have enough resources to do something you felt was important but found a creative way to get it done anyway.",
+      "difficulty": "Medium",
+      "tags": [
+        "creativity",
+        "resourcefulness",
+        "constraints"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.191Z",
+      "updated_at": "2026-02-04T23:36:24.191Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 22,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time when you solved a complex problem with a simple solution.",
+      "difficulty": "Easy",
+      "tags": [
+        "problem_solving",
+        "simplification",
+        "creativity"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.192Z",
+      "updated_at": "2026-02-04T23:36:24.192Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 23,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a situation where you experienced resourcing constraints. How did you handle it?",
+      "difficulty": "Medium",
+      "tags": [
+        "constraints",
+        "resource_management",
+        "adaptation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.193Z",
+      "updated_at": "2026-02-04T23:36:24.193Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 24,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "What would you do if 4 people worked on a project but one person took all the credits?",
+      "difficulty": "Medium",
+      "tags": [
+        "conflict",
+        "fairness",
+        "team_dynamics"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.194Z",
+      "updated_at": "2026-02-04T23:36:24.194Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 25,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a situation where you have failed and what you learned from it.",
+      "difficulty": "Easy",
+      "tags": [
+        "failure",
+        "learning",
+        "growth"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.195Z",
+      "updated_at": "2026-02-04T23:36:24.195Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 26,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time when you received constructive feedback and acted on it for improvement.",
+      "difficulty": "Easy",
+      "tags": [
+        "feedback",
+        "growth",
+        "action"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.196Z",
+      "updated_at": "2026-02-04T23:36:24.196Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 27,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a time when you disagreed with a colleague and your initial stance was not clearly correct.",
+      "difficulty": "Medium",
+      "tags": [
+        "disagreement",
+        "humility",
+        "learning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.198Z",
+      "updated_at": "2026-02-04T23:36:24.198Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 59,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you took a big risk and it failed. What did you learn? What would you do differently?",
+      "difficulty": "Medium",
+      "tags": [
+        "failure",
+        "risk",
+        "learning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.727Z",
+      "updated_at": "2026-02-04T23:39:09.727Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 60,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Give me an example of a significant professional failure. What did you learn from this situation?",
+      "difficulty": "Medium",
+      "tags": [
+        "failure",
+        "learning",
+        "growth"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.727Z",
+      "updated_at": "2026-02-04T23:39:09.727Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 61,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you made a significant mistake. What led you to making the wrong decision?",
+      "difficulty": "Medium",
+      "tags": [
+        "mistake",
+        "decision_making",
+        "reflection"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.728Z",
+      "updated_at": "2026-02-04T23:39:09.728Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 62,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Give an example of a tough or critical piece of feedback you received. What was it and what did you do about it?",
+      "difficulty": "Medium",
+      "tags": [
+        "feedback",
+        "growth",
+        "adaptation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.729Z",
+      "updated_at": "2026-02-04T23:39:09.729Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 63,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you strongly disagreed with your manager on something you deemed very important to the business.",
+      "difficulty": "Hard",
+      "tags": [
+        "conflict",
+        "disagreement",
+        "conviction"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.729Z",
+      "updated_at": "2026-02-04T23:39:09.729Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 64,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you had significant, unanticipated obstacles to overcome in achieving a key goal. Were you eventually successful?",
+      "difficulty": "Medium",
+      "tags": [
+        "obstacles",
+        "persistence",
+        "problem_solving"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.73Z",
+      "updated_at": "2026-02-04T23:39:09.73Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 65,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a time where you felt really strongly about something but ultimately lost the argument. How hard did you press the issue?",
+      "difficulty": "Medium",
+      "tags": [
+        "conflict",
+        "conviction",
+        "compromise"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.731Z",
+      "updated_at": "2026-02-04T23:39:09.731Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 66,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time where someone has openly challenged you. How did you handle this feedback?",
+      "difficulty": "Medium",
+      "tags": [
+        "challenge",
+        "feedback",
+        "conflict_resolution"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.732Z",
+      "updated_at": "2026-02-04T23:39:09.732Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 67,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you didn't have enough resources to do something you felt was important but found a creative way to get it done anyway.",
+      "difficulty": "Medium",
+      "tags": [
+        "creativity",
+        "resourcefulness",
+        "constraints"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.732Z",
+      "updated_at": "2026-02-04T23:39:09.732Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 68,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time when you solved a complex problem with a simple solution.",
+      "difficulty": "Easy",
+      "tags": [
+        "problem_solving",
+        "simplification",
+        "creativity"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.733Z",
+      "updated_at": "2026-02-04T23:39:09.733Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 69,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a situation where you experienced resourcing constraints. How did you handle it?",
+      "difficulty": "Medium",
+      "tags": [
+        "constraints",
+        "resource_management",
+        "adaptation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.734Z",
+      "updated_at": "2026-02-04T23:39:09.734Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 70,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "What would you do if 4 people worked on a project but one person took all the credits?",
+      "difficulty": "Medium",
+      "tags": [
+        "conflict",
+        "fairness",
+        "team_dynamics"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.735Z",
+      "updated_at": "2026-02-04T23:39:09.735Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 71,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a situation where you have failed and what you learned from it.",
+      "difficulty": "Easy",
+      "tags": [
+        "failure",
+        "learning",
+        "growth"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.736Z",
+      "updated_at": "2026-02-04T23:39:09.736Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 72,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time when you received constructive feedback and acted on it for improvement.",
+      "difficulty": "Easy",
+      "tags": [
+        "feedback",
+        "growth",
+        "action"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.737Z",
+      "updated_at": "2026-02-04T23:39:09.737Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 73,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a time when you disagreed with a colleague and your initial stance was not clearly correct.",
+      "difficulty": "Medium",
+      "tags": [
+        "disagreement",
+        "humility",
+        "learning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.738Z",
+      "updated_at": "2026-02-04T23:39:09.738Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 104,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you took a big risk and it failed. What did you learn? What would you do differently?",
+      "difficulty": "Medium",
+      "tags": [
+        "failure",
+        "risk",
+        "learning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.127Z",
+      "updated_at": "2026-02-05T17:42:31.127Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 105,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Give me an example of a significant professional failure. What did you learn from this situation?",
+      "difficulty": "Medium",
+      "tags": [
+        "failure",
+        "learning",
+        "growth"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.127Z",
+      "updated_at": "2026-02-05T17:42:31.127Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 106,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you made a significant mistake. What led you to making the wrong decision?",
+      "difficulty": "Medium",
+      "tags": [
+        "mistake",
+        "decision_making",
+        "reflection"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.128Z",
+      "updated_at": "2026-02-05T17:42:31.128Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 107,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Give an example of a tough or critical piece of feedback you received. What was it and what did you do about it?",
+      "difficulty": "Medium",
+      "tags": [
+        "feedback",
+        "growth",
+        "adaptation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.129Z",
+      "updated_at": "2026-02-05T17:42:31.129Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 108,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you strongly disagreed with your manager on something you deemed very important to the business.",
+      "difficulty": "Hard",
+      "tags": [
+        "conflict",
+        "disagreement",
+        "conviction"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.13Z",
+      "updated_at": "2026-02-05T17:42:31.13Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 109,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you had significant, unanticipated obstacles to overcome in achieving a key goal. Were you eventually successful?",
+      "difficulty": "Medium",
+      "tags": [
+        "obstacles",
+        "persistence",
+        "problem_solving"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.13Z",
+      "updated_at": "2026-02-05T17:42:31.13Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 110,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a time where you felt really strongly about something but ultimately lost the argument. How hard did you press the issue?",
+      "difficulty": "Medium",
+      "tags": [
+        "conflict",
+        "conviction",
+        "compromise"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.131Z",
+      "updated_at": "2026-02-05T17:42:31.131Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 111,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time where someone has openly challenged you. How did you handle this feedback?",
+      "difficulty": "Medium",
+      "tags": [
+        "challenge",
+        "feedback",
+        "conflict_resolution"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.132Z",
+      "updated_at": "2026-02-05T17:42:31.132Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 112,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you didn't have enough resources to do something you felt was important but found a creative way to get it done anyway.",
+      "difficulty": "Medium",
+      "tags": [
+        "creativity",
+        "resourcefulness",
+        "constraints"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.133Z",
+      "updated_at": "2026-02-05T17:42:31.133Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 113,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time when you solved a complex problem with a simple solution.",
+      "difficulty": "Easy",
+      "tags": [
+        "problem_solving",
+        "simplification",
+        "creativity"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.134Z",
+      "updated_at": "2026-02-05T17:42:31.134Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 114,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a situation where you experienced resourcing constraints. How did you handle it?",
+      "difficulty": "Medium",
+      "tags": [
+        "constraints",
+        "resource_management",
+        "adaptation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.134Z",
+      "updated_at": "2026-02-05T17:42:31.134Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 115,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "What would you do if 4 people worked on a project but one person took all the credits?",
+      "difficulty": "Medium",
+      "tags": [
+        "conflict",
+        "fairness",
+        "team_dynamics"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.135Z",
+      "updated_at": "2026-02-05T17:42:31.135Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 116,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a situation where you have failed and what you learned from it.",
+      "difficulty": "Easy",
+      "tags": [
+        "failure",
+        "learning",
+        "growth"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.136Z",
+      "updated_at": "2026-02-05T17:42:31.136Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 117,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Tell me about a time when you received constructive feedback and acted on it for improvement.",
+      "difficulty": "Easy",
+      "tags": [
+        "feedback",
+        "growth",
+        "action"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.137Z",
+      "updated_at": "2026-02-05T17:42:31.137Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 118,
+      "category_id": 3,
+      "question_type_id": null,
+      "question_text": "Describe a time when you disagreed with a colleague and your initial stance was not clearly correct.",
+      "difficulty": "Medium",
+      "tags": [
+        "disagreement",
+        "humility",
+        "learning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.138Z",
+      "updated_at": "2026-02-05T17:42:31.138Z",
+      "category_name": "Behavioral"
+    },
+    {
+      "id": 36,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "Sales thinks a new platform policy is too restrictive and stops revenue. Legal thinks it prevents lawsuits and negative PR. How would you handle this stakeholder conflict and drive alignment?",
+      "difficulty": "Hard",
+      "tags": [
+        "stakeholder_conflict",
+        "alignment",
+        "negotiation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.205Z",
+      "updated_at": "2026-02-04T23:36:24.205Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 37,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "What do you do when you need the support of a cross-functional team but they say they don't have time to help?",
+      "difficulty": "Medium",
+      "tags": [
+        "influence",
+        "cross_functional",
+        "persuasion"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.207Z",
+      "updated_at": "2026-02-04T23:36:24.207Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 38,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "What is your approach to working with developers? How do you build effective partnerships?",
+      "difficulty": "Easy",
+      "tags": [
+        "collaboration",
+        "developers",
+        "partnership"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.207Z",
+      "updated_at": "2026-02-04T23:36:24.207Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 39,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "Describe a time when you needed the cooperation of a peer or peers who were resistant to what you were trying to do. What did you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "resistance",
+        "influence",
+        "persuasion"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.208Z",
+      "updated_at": "2026-02-04T23:36:24.208Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 40,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you led a cross-functional team toward a common goal. How did you align everyone?",
+      "difficulty": "Medium",
+      "tags": [
+        "cross_functional",
+        "leadership",
+        "alignment"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.209Z",
+      "updated_at": "2026-02-04T23:36:24.209Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 41,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "In a cross-functional project, how do you communicate progress to all stakeholders? Describe your communication strategy.",
+      "difficulty": "Easy",
+      "tags": [
+        "communication",
+        "stakeholders",
+        "transparency"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.211Z",
+      "updated_at": "2026-02-04T23:36:24.211Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 82,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "Sales thinks a new platform policy is too restrictive and stops revenue. Legal thinks it prevents lawsuits and negative PR. How would you handle this stakeholder conflict and drive alignment?",
+      "difficulty": "Hard",
+      "tags": [
+        "stakeholder_conflict",
+        "alignment",
+        "negotiation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.745Z",
+      "updated_at": "2026-02-04T23:39:09.745Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 83,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "What do you do when you need the support of a cross-functional team but they say they don't have time to help?",
+      "difficulty": "Medium",
+      "tags": [
+        "influence",
+        "cross_functional",
+        "persuasion"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.745Z",
+      "updated_at": "2026-02-04T23:39:09.745Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 84,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "What is your approach to working with developers? How do you build effective partnerships?",
+      "difficulty": "Easy",
+      "tags": [
+        "collaboration",
+        "developers",
+        "partnership"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.746Z",
+      "updated_at": "2026-02-04T23:39:09.746Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 85,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "Describe a time when you needed the cooperation of a peer or peers who were resistant to what you were trying to do. What did you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "resistance",
+        "influence",
+        "persuasion"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.746Z",
+      "updated_at": "2026-02-04T23:39:09.746Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 86,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you led a cross-functional team toward a common goal. How did you align everyone?",
+      "difficulty": "Medium",
+      "tags": [
+        "cross_functional",
+        "leadership",
+        "alignment"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.747Z",
+      "updated_at": "2026-02-04T23:39:09.747Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 87,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "In a cross-functional project, how do you communicate progress to all stakeholders? Describe your communication strategy.",
+      "difficulty": "Easy",
+      "tags": [
+        "communication",
+        "stakeholders",
+        "transparency"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.748Z",
+      "updated_at": "2026-02-04T23:39:09.748Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 127,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "Sales thinks a new platform policy is too restrictive and stops revenue. Legal thinks it prevents lawsuits and negative PR. How would you handle this stakeholder conflict and drive alignment?",
+      "difficulty": "Hard",
+      "tags": [
+        "stakeholder_conflict",
+        "alignment",
+        "negotiation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.148Z",
+      "updated_at": "2026-02-05T17:42:31.148Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 128,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "What do you do when you need the support of a cross-functional team but they say they don't have time to help?",
+      "difficulty": "Medium",
+      "tags": [
+        "influence",
+        "cross_functional",
+        "persuasion"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.149Z",
+      "updated_at": "2026-02-05T17:42:31.149Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 129,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "What is your approach to working with developers? How do you build effective partnerships?",
+      "difficulty": "Easy",
+      "tags": [
+        "collaboration",
+        "developers",
+        "partnership"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.149Z",
+      "updated_at": "2026-02-05T17:42:31.149Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 130,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "Describe a time when you needed the cooperation of a peer or peers who were resistant to what you were trying to do. What did you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "resistance",
+        "influence",
+        "persuasion"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.15Z",
+      "updated_at": "2026-02-05T17:42:31.15Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 131,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you led a cross-functional team toward a common goal. How did you align everyone?",
+      "difficulty": "Medium",
+      "tags": [
+        "cross_functional",
+        "leadership",
+        "alignment"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.151Z",
+      "updated_at": "2026-02-05T17:42:31.151Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 132,
+      "category_id": 5,
+      "question_type_id": null,
+      "question_text": "In a cross-functional project, how do you communicate progress to all stakeholders? Describe your communication strategy.",
+      "difficulty": "Easy",
+      "tags": [
+        "communication",
+        "stakeholders",
+        "transparency"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.152Z",
+      "updated_at": "2026-02-05T17:42:31.152Z",
+      "category_name": "Partnership"
+    },
+    {
+      "id": 1,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How would you lead a project to migrate from one cloud provider to another?",
+      "difficulty": "Hard",
+      "tags": [
+        "migration",
+        "cloud",
+        "planning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.151Z",
+      "updated_at": "2026-02-04T23:36:24.151Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 2,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Let's say you join a project which is only 25% complete and has used 85% of resources, what would be your next steps?",
+      "difficulty": "Hard",
+      "tags": [
+        "resource_management",
+        "recovery",
+        "prioritization"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.169Z",
+      "updated_at": "2026-02-04T23:36:24.169Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 3,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Google needs to perform a disaster recovery exercise to test operation readiness in the event of major failures. How would you plan this?",
+      "difficulty": "Medium",
+      "tags": [
+        "disaster_recovery",
+        "planning",
+        "risk"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.17Z",
+      "updated_at": "2026-02-04T23:36:24.17Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 4,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "What's your process for starting a project from scratch?",
+      "difficulty": "Medium",
+      "tags": [
+        "project_kickoff",
+        "planning",
+        "process"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.172Z",
+      "updated_at": "2026-02-04T23:36:24.172Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 5,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How do you run a program? How do you define entry and exit criteria?",
+      "difficulty": "Medium",
+      "tags": [
+        "program_management",
+        "criteria",
+        "framework"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.174Z",
+      "updated_at": "2026-02-04T23:36:24.174Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 6,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you drove a project, identified risks, and mitigated them throughout the program.",
+      "difficulty": "Medium",
+      "tags": [
+        "risk_management",
+        "mitigation",
+        "execution"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.175Z",
+      "updated_at": "2026-02-04T23:36:24.175Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 7,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Describe a time when you created a long-term multi-year roadmap.",
+      "difficulty": "Hard",
+      "tags": [
+        "roadmap",
+        "strategy",
+        "long_term_planning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.177Z",
+      "updated_at": "2026-02-04T23:36:24.177Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 8,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How would you run a program for datacenter migration with 24/7 availability requirements?",
+      "difficulty": "Hard",
+      "tags": [
+        "migration",
+        "uptime",
+        "availability"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.178Z",
+      "updated_at": "2026-02-04T23:36:24.178Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 9,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Given a situation where you need to deploy a feature/system with limited resources, what would you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "resource_constraints",
+        "prioritization",
+        "deployment"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.18Z",
+      "updated_at": "2026-02-04T23:36:24.18Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 10,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How do you communicate with stakeholders? Describe your approach to status reports, newsletters, and KPI tracking.",
+      "difficulty": "Easy",
+      "tags": [
+        "communication",
+        "stakeholders",
+        "reporting"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.182Z",
+      "updated_at": "2026-02-04T23:36:24.182Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 11,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Once given a project, how do you tackle the problem? Walk through your approach.",
+      "difficulty": "Easy",
+      "tags": [
+        "problem_solving",
+        "approach",
+        "methodology"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.183Z",
+      "updated_at": "2026-02-04T23:36:24.183Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 12,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How do you determine and measure the success of a project as it progresses?",
+      "difficulty": "Medium",
+      "tags": [
+        "metrics",
+        "success_criteria",
+        "tracking"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.184Z",
+      "updated_at": "2026-02-04T23:36:24.184Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 46,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How do you handle scope creep in a long-running program?",
+      "difficulty": "Medium",
+      "tags": [
+        "scope_management",
+        "change_control",
+        "prioritization"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:38:14.15Z",
+      "updated_at": "2026-02-04T23:38:14.15Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 47,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How would you lead a project to migrate from one cloud provider to another?",
+      "difficulty": "Hard",
+      "tags": [
+        "migration",
+        "cloud",
+        "planning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.708Z",
+      "updated_at": "2026-02-04T23:39:09.708Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 48,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Let's say you join a project which is only 25% complete and has used 85% of resources, what would be your next steps?",
+      "difficulty": "Hard",
+      "tags": [
+        "resource_management",
+        "recovery",
+        "prioritization"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.714Z",
+      "updated_at": "2026-02-04T23:39:09.714Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 49,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Google needs to perform a disaster recovery exercise to test operation readiness in the event of major failures. How would you plan this?",
+      "difficulty": "Medium",
+      "tags": [
+        "disaster_recovery",
+        "planning",
+        "risk"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.715Z",
+      "updated_at": "2026-02-04T23:39:09.715Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 50,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "What's your process for starting a project from scratch?",
+      "difficulty": "Medium",
+      "tags": [
+        "project_kickoff",
+        "planning",
+        "process"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.716Z",
+      "updated_at": "2026-02-04T23:39:09.716Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 51,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How do you run a program? How do you define entry and exit criteria?",
+      "difficulty": "Medium",
+      "tags": [
+        "program_management",
+        "criteria",
+        "framework"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.718Z",
+      "updated_at": "2026-02-04T23:39:09.718Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 52,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you drove a project, identified risks, and mitigated them throughout the program.",
+      "difficulty": "Medium",
+      "tags": [
+        "risk_management",
+        "mitigation",
+        "execution"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.719Z",
+      "updated_at": "2026-02-04T23:39:09.719Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 53,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Describe a time when you created a long-term multi-year roadmap.",
+      "difficulty": "Hard",
+      "tags": [
+        "roadmap",
+        "strategy",
+        "long_term_planning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.721Z",
+      "updated_at": "2026-02-04T23:39:09.721Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 54,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How would you run a program for datacenter migration with 24/7 availability requirements?",
+      "difficulty": "Hard",
+      "tags": [
+        "migration",
+        "uptime",
+        "availability"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.722Z",
+      "updated_at": "2026-02-04T23:39:09.722Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 55,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Given a situation where you need to deploy a feature/system with limited resources, what would you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "resource_constraints",
+        "prioritization",
+        "deployment"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.724Z",
+      "updated_at": "2026-02-04T23:39:09.724Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 56,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How do you communicate with stakeholders? Describe your approach to status reports, newsletters, and KPI tracking.",
+      "difficulty": "Easy",
+      "tags": [
+        "communication",
+        "stakeholders",
+        "reporting"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.724Z",
+      "updated_at": "2026-02-04T23:39:09.724Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 57,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Once given a project, how do you tackle the problem? Walk through your approach.",
+      "difficulty": "Easy",
+      "tags": [
+        "problem_solving",
+        "approach",
+        "methodology"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.725Z",
+      "updated_at": "2026-02-04T23:39:09.725Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 58,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How do you determine and measure the success of a project as it progresses?",
+      "difficulty": "Medium",
+      "tags": [
+        "metrics",
+        "success_criteria",
+        "tracking"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.726Z",
+      "updated_at": "2026-02-04T23:39:09.726Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 92,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How would you lead a project to migrate from one cloud provider to another?",
+      "difficulty": "Hard",
+      "tags": [
+        "migration",
+        "cloud",
+        "planning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.089Z",
+      "updated_at": "2026-02-05T17:42:31.089Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 93,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Let's say you join a project which is only 25% complete and has used 85% of resources, what would be your next steps?",
+      "difficulty": "Hard",
+      "tags": [
+        "resource_management",
+        "recovery",
+        "prioritization"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.111Z",
+      "updated_at": "2026-02-05T17:42:31.111Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 94,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Google needs to perform a disaster recovery exercise to test operation readiness in the event of major failures. How would you plan this?",
+      "difficulty": "Medium",
+      "tags": [
+        "disaster_recovery",
+        "planning",
+        "risk"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.112Z",
+      "updated_at": "2026-02-05T17:42:31.112Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 95,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "What's your process for starting a project from scratch?",
+      "difficulty": "Medium",
+      "tags": [
+        "project_kickoff",
+        "planning",
+        "process"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.113Z",
+      "updated_at": "2026-02-05T17:42:31.113Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 96,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How do you run a program? How do you define entry and exit criteria?",
+      "difficulty": "Medium",
+      "tags": [
+        "program_management",
+        "criteria",
+        "framework"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.114Z",
+      "updated_at": "2026-02-05T17:42:31.114Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 97,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Tell me about a time you drove a project, identified risks, and mitigated them throughout the program.",
+      "difficulty": "Medium",
+      "tags": [
+        "risk_management",
+        "mitigation",
+        "execution"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.116Z",
+      "updated_at": "2026-02-05T17:42:31.116Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 98,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Describe a time when you created a long-term multi-year roadmap.",
+      "difficulty": "Hard",
+      "tags": [
+        "roadmap",
+        "strategy",
+        "long_term_planning"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.118Z",
+      "updated_at": "2026-02-05T17:42:31.118Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 99,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How would you run a program for datacenter migration with 24/7 availability requirements?",
+      "difficulty": "Hard",
+      "tags": [
+        "migration",
+        "uptime",
+        "availability"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.12Z",
+      "updated_at": "2026-02-05T17:42:31.12Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 100,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Given a situation where you need to deploy a feature/system with limited resources, what would you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "resource_constraints",
+        "prioritization",
+        "deployment"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.122Z",
+      "updated_at": "2026-02-05T17:42:31.122Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 101,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How do you communicate with stakeholders? Describe your approach to status reports, newsletters, and KPI tracking.",
+      "difficulty": "Easy",
+      "tags": [
+        "communication",
+        "stakeholders",
+        "reporting"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.124Z",
+      "updated_at": "2026-02-05T17:42:31.124Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 102,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "Once given a project, how do you tackle the problem? Walk through your approach.",
+      "difficulty": "Easy",
+      "tags": [
+        "problem_solving",
+        "approach",
+        "methodology"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.125Z",
+      "updated_at": "2026-02-05T17:42:31.125Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 103,
+      "category_id": 1,
+      "question_type_id": null,
+      "question_text": "How do you determine and measure the success of a project as it progresses?",
+      "difficulty": "Medium",
+      "tags": [
+        "metrics",
+        "success_criteria",
+        "tracking"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.126Z",
+      "updated_at": "2026-02-05T17:42:31.126Z",
+      "category_name": "Program Sense"
+    },
+    {
+      "id": 28,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a photo sharing system for a travel application.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "scalability",
+        "storage"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.199Z",
+      "updated_at": "2026-02-04T23:36:24.199Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 29,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a photo sharing feature for a travel app. Discuss NoSQL vs SQL trade-offs.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "database",
+        "tradeoffs"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.199Z",
+      "updated_at": "2026-02-04T23:36:24.199Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 30,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design an end-to-end functionality for Facebook to allow users to download their information to their system.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "data_export",
+        "privacy"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.2Z",
+      "updated_at": "2026-02-04T23:36:24.2Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 31,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a system to automate building access for 1000 employees across different departments with security constraints.",
+      "difficulty": "Medium",
+      "tags": [
+        "design",
+        "security",
+        "access_control"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.201Z",
+      "updated_at": "2026-02-04T23:36:24.201Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 32,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a data migration tool for AAD B2C to place user data in their registered geo-location data centers.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "migration",
+        "geo_distribution"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.202Z",
+      "updated_at": "2026-02-04T23:36:24.202Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 33,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "How would you design a URL shortener service?",
+      "difficulty": "Medium",
+      "tags": [
+        "design",
+        "scalability",
+        "hashing"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.202Z",
+      "updated_at": "2026-02-04T23:36:24.202Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 34,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Explain how you would implement a distributed hash table.",
+      "difficulty": "Hard",
+      "tags": [
+        "distributed_systems",
+        "hashing",
+        "architecture"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.203Z",
+      "updated_at": "2026-02-04T23:36:24.203Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 35,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Working with developers to discuss feature tradeoffs - How would you lead this meeting and technical discussion?",
+      "difficulty": "Medium",
+      "tags": [
+        "tradeoffs",
+        "collaboration",
+        "decision_making"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.204Z",
+      "updated_at": "2026-02-04T23:36:24.204Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 74,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a photo sharing system for a travel application.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "scalability",
+        "storage"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.739Z",
+      "updated_at": "2026-02-04T23:39:09.739Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 75,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a photo sharing feature for a travel app. Discuss NoSQL vs SQL trade-offs.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "database",
+        "tradeoffs"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.74Z",
+      "updated_at": "2026-02-04T23:39:09.74Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 76,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design an end-to-end functionality for Facebook to allow users to download their information to their system.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "data_export",
+        "privacy"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.74Z",
+      "updated_at": "2026-02-04T23:39:09.74Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 77,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a system to automate building access for 1000 employees across different departments with security constraints.",
+      "difficulty": "Medium",
+      "tags": [
+        "design",
+        "security",
+        "access_control"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.741Z",
+      "updated_at": "2026-02-04T23:39:09.741Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 78,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a data migration tool for AAD B2C to place user data in their registered geo-location data centers.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "migration",
+        "geo_distribution"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.741Z",
+      "updated_at": "2026-02-04T23:39:09.741Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 79,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "How would you design a URL shortener service?",
+      "difficulty": "Medium",
+      "tags": [
+        "design",
+        "scalability",
+        "hashing"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.742Z",
+      "updated_at": "2026-02-04T23:39:09.742Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 80,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Explain how you would implement a distributed hash table.",
+      "difficulty": "Hard",
+      "tags": [
+        "distributed_systems",
+        "hashing",
+        "architecture"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.743Z",
+      "updated_at": "2026-02-04T23:39:09.743Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 81,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Working with developers to discuss feature tradeoffs - How would you lead this meeting and technical discussion?",
+      "difficulty": "Medium",
+      "tags": [
+        "tradeoffs",
+        "collaboration",
+        "decision_making"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.744Z",
+      "updated_at": "2026-02-04T23:39:09.744Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 119,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a photo sharing system for a travel application.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "scalability",
+        "storage"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.138Z",
+      "updated_at": "2026-02-05T17:42:31.138Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 120,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a photo sharing feature for a travel app. Discuss NoSQL vs SQL trade-offs.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "database",
+        "tradeoffs"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.139Z",
+      "updated_at": "2026-02-05T17:42:31.139Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 121,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design an end-to-end functionality for Facebook to allow users to download their information to their system.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "data_export",
+        "privacy"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.14Z",
+      "updated_at": "2026-02-05T17:42:31.14Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 122,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a system to automate building access for 1000 employees across different departments with security constraints.",
+      "difficulty": "Medium",
+      "tags": [
+        "design",
+        "security",
+        "access_control"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.141Z",
+      "updated_at": "2026-02-05T17:42:31.141Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 123,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Design a data migration tool for AAD B2C to place user data in their registered geo-location data centers.",
+      "difficulty": "Hard",
+      "tags": [
+        "design",
+        "migration",
+        "geo_distribution"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.143Z",
+      "updated_at": "2026-02-05T17:42:31.143Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 124,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "How would you design a URL shortener service?",
+      "difficulty": "Medium",
+      "tags": [
+        "design",
+        "scalability",
+        "hashing"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.144Z",
+      "updated_at": "2026-02-05T17:42:31.144Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 125,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Explain how you would implement a distributed hash table.",
+      "difficulty": "Hard",
+      "tags": [
+        "distributed_systems",
+        "hashing",
+        "architecture"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.145Z",
+      "updated_at": "2026-02-05T17:42:31.145Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 126,
+      "category_id": 2,
+      "question_type_id": null,
+      "question_text": "Working with developers to discuss feature tradeoffs - How would you lead this meeting and technical discussion?",
+      "difficulty": "Medium",
+      "tags": [
+        "tradeoffs",
+        "collaboration",
+        "decision_making"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.147Z",
+      "updated_at": "2026-02-05T17:42:31.147Z",
+      "category_name": "System Design"
+    },
+    {
+      "id": 42,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "You identify a new bug 2 days before the release of your new product feature. What do you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "crisis",
+        "decision_making",
+        "release_management"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.212Z",
+      "updated_at": "2026-02-04T23:36:24.212Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 43,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "During a recent product update you break something in the deployment pipeline. What do you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "incident",
+        "debugging",
+        "deployment"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.212Z",
+      "updated_at": "2026-02-04T23:36:24.212Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 44,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "If you are given 1000 streetview cars to improve the streetview product in Google Maps, how would you operationalize and run this program?",
+      "difficulty": "Hard",
+      "tags": [
+        "operations",
+        "scale",
+        "logistics"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.213Z",
+      "updated_at": "2026-02-04T23:36:24.213Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 45,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "Describe a technical program you ran (with architecture diagram). What technical gaps did you identify and how did you mitigate risks?",
+      "difficulty": "Hard",
+      "tags": [
+        "technical_program",
+        "architecture",
+        "risk_mitigation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:36:24.214Z",
+      "updated_at": "2026-02-04T23:36:24.214Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 88,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "You identify a new bug 2 days before the release of your new product feature. What do you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "crisis",
+        "decision_making",
+        "release_management"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.748Z",
+      "updated_at": "2026-02-04T23:39:09.748Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 89,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "During a recent product update you break something in the deployment pipeline. What do you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "incident",
+        "debugging",
+        "deployment"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.75Z",
+      "updated_at": "2026-02-04T23:39:09.75Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 90,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "If you are given 1000 streetview cars to improve the streetview product in Google Maps, how would you operationalize and run this program?",
+      "difficulty": "Hard",
+      "tags": [
+        "operations",
+        "scale",
+        "logistics"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.751Z",
+      "updated_at": "2026-02-04T23:39:09.751Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 91,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "Describe a technical program you ran (with architecture diagram). What technical gaps did you identify and how did you mitigate risks?",
+      "difficulty": "Hard",
+      "tags": [
+        "technical_program",
+        "architecture",
+        "risk_mitigation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-04T23:39:09.752Z",
+      "updated_at": "2026-02-04T23:39:09.752Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 133,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "You identify a new bug 2 days before the release of your new product feature. What do you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "crisis",
+        "decision_making",
+        "release_management"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.153Z",
+      "updated_at": "2026-02-05T17:42:31.153Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 134,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "During a recent product update you break something in the deployment pipeline. What do you do?",
+      "difficulty": "Medium",
+      "tags": [
+        "incident",
+        "debugging",
+        "deployment"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.155Z",
+      "updated_at": "2026-02-05T17:42:31.155Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 135,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "If you are given 1000 streetview cars to improve the streetview product in Google Maps, how would you operationalize and run this program?",
+      "difficulty": "Hard",
+      "tags": [
+        "operations",
+        "scale",
+        "logistics"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.156Z",
+      "updated_at": "2026-02-05T17:42:31.156Z",
+      "category_name": "Technical"
+    },
+    {
+      "id": 136,
+      "category_id": 4,
+      "question_type_id": null,
+      "question_text": "Describe a technical program you ran (with architecture diagram). What technical gaps did you identify and how did you mitigate risks?",
+      "difficulty": "Hard",
+      "tags": [
+        "technical_program",
+        "architecture",
+        "risk_mitigation"
+      ],
+      "ideal_answer_count": 0,
+      "created_at": "2026-02-05T17:42:31.157Z",
+      "updated_at": "2026-02-05T17:42:31.157Z",
+      "category_name": "Technical"
+    }
+  ]
+}
