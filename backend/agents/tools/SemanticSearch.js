@@ -96,7 +96,7 @@ console.log(`📊 Row data:`, sampleAnswers.rows);
         const sampleData = sampleAnswers.rows.find(row => row.id === parseInt(match.id));
         
         if (!sampleData) {
-          console.warn(`⚠️  Sample ${match.metadata.sample_id} not found in database`);
+          console.warn(`⚠️  Sample ${match.id} not found in database`);
           return null;
         }
       
