@@ -8,8 +8,8 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate": "node scripts/migrate.js",
-  "seed": "node scripts/seed.js",
-  "setup-db": "npm run migrate && npm run seed"
+    "seed": "node scripts/seed.js",
+    "setup-db": "npm run migrate && npm run seed"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +17,7 @@
   "dependencies": {
     "@pinecone-database/pinecone": "^6.1.4",
     "axios": "^1.13.4",
+    "bottleneck": "^2.19.5",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

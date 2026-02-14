@@ -55,10 +55,11 @@ class SemanticSearch {
       if (results.matches.length === 0) {
         console.log('⚠️  No similar examples found');
         return [];
+
       }
       
       // Step 3: Get sample IDs from Pinecone results
-      const sampleIds = results.matches.map(match => match.metadata.sample_id);
+      const sampleIds = results.matches.map(match => match.id);
 
       // ADD THIS:
       console.log(`🔍 Extracted sample IDs from Pinecone:`, sampleIds);
@@ -91,14 +92,16 @@ console.log(`📊 Row data:`, sampleAnswers.rows);
       
       // Step 5: Combine Pinecone similarity scores with PostgreSQL data
       const enrichedResults = results.matches.map(match => {
-        const sampleData = sampleAnswers.rows.find(row => row.id === match.metadata.sample_id);
+        //const sampleData = sampleAnswers.rows.find(row => row.id === match.metadata.sample_id);
+        const sampleData = sampleAnswers.rows.find(row => row.id === parseInt(match.id));
         
         if (!sampleData) {
           console.warn(`⚠️  Sample ${match.metadata.sample_id} not found in database`);
           return null;
         }
-        
+      
         return {
+          id: sampleData.id,
           similarity: match.score,
           score: sampleData.overall_score,
           question_type: sampleData.question_type,

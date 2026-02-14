@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+
+
 require('dotenv').config();
 
 const app = express();
@@ -67,20 +69,45 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log('\n🚀 TPM Interview Agentic AI - Phase 5');
-  console.log(`📡 Server running on port ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🤖 RAG Features: ${process.env.ENABLE_RAG_FEATURES === 'true' ? 'ENABLED' : 'DISABLED'}`);
-  console.log('\n📚 Available endpoints:');
-  console.log('  GET  /health - Health check');
-  console.log('  POST /api/tools/parse-star - STAR analysis');
-  console.log('  POST /api/search/similar - Semantic search');
-  console.log('  GET  /api/categories - List all categories ⭐ NEW');
-  console.log('  GET  /api/categories/:id - Get category details ⭐ NEW');
-  console.log('  GET  /api/categories/:id/rubrics - Get category rubrics ⭐ NEW');
-  console.log('  GET  /admin/* - Admin endpoints\n');
-});
+// Import cache service
+const { getCacheService } = require('./services/CacheService');
+
+// Start server with cache initialization
+async function startServer() {
+  try {
+    console.log('\n🚀 TPM Interview Agentic AI - Phase 5 (Optimized)');
+    console.log('━'.repeat(60));
+    
+    // Initialize cache service
+    console.log('\n📦 Initializing cache service...');
+    const cacheService = getCacheService();
+    await cacheService.initialize();
+    
+    // Start server
+    app.listen(PORT, () => {
+      console.log('\n✅ Server ready!');
+      console.log(`📡 Running on port ${PORT}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🤖 RAG Features: ${process.env.ENABLE_RAG_FEATURES === 'true' ? 'ENABLED' : 'DISABLED'}`);
+      console.log('\n📚 Available endpoints:');
+      console.log('  GET  /health - Health check');
+      console.log('  POST /api/tools/parse-star - STAR analysis');
+      console.log('  POST /api/search/similar - Semantic search');
+      console.log('  GET  /api/categories - List all categories');
+      console.log('  GET  /api/categories/:id - Get category details');
+      console.log('  GET  /api/categories/:id/rubrics - Get category rubrics');
+      console.log('  GET  /admin/* - Admin endpoints');
+      console.log('\n' + '━'.repeat(60) + '\n');
+    });
+    
+  } catch (error) {
+    console.error('\n❌ Failed to start server:', error);
+    console.error(error.stack);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();
 
 module.exports = app;

@@ -12,6 +12,7 @@ async function embedAllSamples() {
     const result = await db.query(`
       SELECT 
         id,
+        category_id,
         question_type,
         question_text,
         answer_text,
@@ -67,7 +68,8 @@ async function embedAllSamples() {
           question_text: sample.question_text?.substring(0, 200) || '',
           level: sample.level,
           overall_score: parseFloat(sample.overall_score) || 0,
-          answer_preview: sample.answer_text?.substring(0, 200) || ''
+          answer_preview: sample.answer_text?.substring(0, 200) || '',
+          category_id: sample.category_id  
         };
         
         // Upsert to Pinecone (ID must be string!)
