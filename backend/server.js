@@ -3,6 +3,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 
 
+
+
+
 require('dotenv').config();
 
 const app = express();
@@ -25,6 +28,7 @@ const toolsRoutes = require('./routes/tools');
 const searchRoutes = require('./routes/search');
 const adminRoutes = require('./routes/admin');
 const categoriesRoutes = require('./routes/categories'); // ⭐ NEW
+const analyzeRoutes = require('./routes/analyze'); 
 
 // Health check
 app.get('/health', (req, res) => {
@@ -45,7 +49,8 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/tools', toolsRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/categories', categoriesRoutes); // ⭐ NEW
+app.use('/api/categories', categoriesRoutes);
+app.use('/api/analyze', analyzeRoutes); // ⭐ NEW
 app.use('/admin', adminRoutes);
 
 // 404 handler
@@ -91,6 +96,7 @@ async function startServer() {
       console.log(`🤖 RAG Features: ${process.env.ENABLE_RAG_FEATURES === 'true' ? 'ENABLED' : 'DISABLED'}`);
       console.log('\n📚 Available endpoints:');
       console.log('  GET  /health - Health check');
+      console.log('  POST /api/analyze - Full analysis pipeline');
       console.log('  POST /api/tools/parse-star - STAR analysis');
       console.log('  POST /api/search/similar - Semantic search');
       console.log('  GET  /api/categories - List all categories');
