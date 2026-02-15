@@ -65,6 +65,12 @@ router.post('/', async (req, res) => {
     const analyzer = new ComparisonAnalyzer_TEST();
     const analysis = await analyzer.analyzeGaps(userAnswer, userSTAR, similarExamples);
 
+    // Step 6: Parse competency scores to numbers  ← NEW
+    const competencyScores = {}; 
+    for (const [key, value] of Object.entries(scores.competency_scores || {})) {  
+      competencyScores[key] = parseFloat(value) || 0;  
+    }  
+
     // Step 6: Return complete analysis
     console.log('✅ Analysis complete\n');
 
@@ -73,27 +79,27 @@ router.post('/', async (req, res) => {
       data: {
         star: {
           situation: {
-            score: userSTAR.situation.score,
+            score: parseFloat(userSTAR.situation.score),
             text: userSTAR.situation.text,
             feedback: userSTAR.situation.feedback
           },
           task: {
-            score: userSTAR.task.score,
+            score: parseFloat(userSTAR.task.score),
             text: userSTAR.task.text,
             feedback: userSTAR.task.feedback
           },
           action: {
-            score: userSTAR.action.score,
+            score: parseFloat(userSTAR.action.score),
             text: userSTAR.action.text,
             feedback: userSTAR.action.feedback
           },
           result: {
-            score: userSTAR.result.score,
+            score: parseFloat(userSTAR.result.score),
             text: userSTAR.result.text,
             feedback: userSTAR.result.feedback
           }
         },
-        competencies: scores.competency_scores,
+        competencies: competencyScores,
         improvements: analysis.improvements || [],
         gaps: analysis.gaps || {},
         similarExamples: similarExamples.length
