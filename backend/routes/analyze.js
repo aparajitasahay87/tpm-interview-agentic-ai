@@ -2,10 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { getCacheService } = require('../services/CacheService');
-const ComparisonAnalyzer_TEST = require('../agents/tools/CombinedAnalyzer_Production.js');
+const CombinedAnalyzer = require('../agents/tools/CombinedAnalyzer_Production');
 const STARParser = require('../agents/tools/STARParser');
 const RubricScorer = require('../agents/tools/RubricScorer');
-const SemanticSearch = require('../agents/tools/SemanticSearch');
 
 /**
  * POST /api/analyze
@@ -40,69 +39,56 @@ router.post('/', async (req, res) => {
     const categoryId = question.category_id;
     console.log(`📂 Category ID: ${categoryId}`);
 
-    // Step 2: Parse STAR
-    console.log('⚙️  Step 1: Parsing STAR...');
-    const starParser = new STARParser();
-    const userSTAR = await starParser.parse(userAnswer);
-
-    // Step 3: Score competencies
-    console.log('⚙️  Step 2: Scoring competencies...');
+    // Step 2: Get rubrics for this category
+    console.log('⚙️  Step 1: Loading rubrics...');
     const rubrics = await cacheService.getRubrics(categoryId);
-    const rubricScorer = new RubricScorer();
-    const scores = await rubricScorer.scoreAnswer(userAnswer, rubrics);
 
-    // Step 4: Semantic search for ideal examples
-    console.log('⚙️  Step 3: Finding similar examples...');
-    const semanticSearch = new SemanticSearch();
-    const similarExamples = await semanticSearch.findSimilarAnswers(
-      userAnswer,
-      categoryId,
-      2 // Top 2 examples
-    );
+    // Step 3: Run combined analysis (does STAR + Competencies + Semantic Search + Improvements)
+    console.log('⚙️  Step 2: Running combined analysis...');
+    const analyzer = new CombinedAnalyzer();
+    const analysis = await analyzer.analyze(userAnswer, categoryId, rubrics);
 
-    // Step 5: Generate improvements using 2-shot comparison
-    console.log('⚙️  Step 4: Generating improvements...');
-    const analyzer = new ComparisonAnalyzer_TEST();
-    const analysis = await analyzer.analyzeGaps(userAnswer, userSTAR, similarExamples);
+    // Step 4: Parse scores to ensure they're numbers
+    const star = {
+      situation: {
+        score: parseFloat(analysis.star.situation.score) || 0,
+        text: analysis.star.situation.text,
+        feedback: analysis.star.situation.feedback
+      },
+      task: {
+        score: parseFloat(analysis.star.task.score) || 0,
+        text: analysis.star.task.text,
+        feedback: analysis.star.task.feedback
+      },
+      action: {
+        score: parseFloat(analysis.star.action.score) || 0,
+        text: analysis.star.action.text,
+        feedback: analysis.star.action.feedback
+      },
+      result: {
+        score: parseFloat(analysis.star.result.score) || 0,
+        text: analysis.star.result.text,
+        feedback: analysis.star.result.feedback
+      }
+    };
 
-    // Step 6: Parse competency scores to numbers  ← NEW
-    const competencyScores = {}; 
-    for (const [key, value] of Object.entries(scores.competency_scores || {})) {  
-      competencyScores[key] = parseFloat(value) || 0;  
-    }  
+    // Parse competency scores to numbers
+    const competencies = {};
+    for (const [key, value] of Object.entries(analysis.competencies || {})) {
+      competencies[key] = parseFloat(value) || 0;
+    }
 
-    // Step 6: Return complete analysis
+    // Step 5: Return complete analysis
     console.log('✅ Analysis complete\n');
 
     return res.json({
       success: true,
       data: {
-        star: {
-          situation: {
-            score: parseFloat(userSTAR.situation.score),
-            text: userSTAR.situation.text,
-            feedback: userSTAR.situation.feedback
-          },
-          task: {
-            score: parseFloat(userSTAR.task.score),
-            text: userSTAR.task.text,
-            feedback: userSTAR.task.feedback
-          },
-          action: {
-            score: parseFloat(userSTAR.action.score),
-            text: userSTAR.action.text,
-            feedback: userSTAR.action.feedback
-          },
-          result: {
-            score: parseFloat(userSTAR.result.score),
-            text: userSTAR.result.text,
-            feedback: userSTAR.result.feedback
-          }
-        },
-        competencies: competencyScores,
+        star,
+        competencies,
         improvements: analysis.improvements || [],
         gaps: analysis.gaps || {},
-        similarExamples: similarExamples.length
+        internal_reasoning: analysis.internal_reasoning || null
       }
     });
 
