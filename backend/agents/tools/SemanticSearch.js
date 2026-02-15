@@ -103,7 +103,7 @@ console.log(`📊 Row data:`, sampleAnswers.rows);
         return {
           id: sampleData.id,
           similarity: match.score,
-          score: sampleData.overall_score,
+          score: parseFloat(sampleData.overall_score),
           question_type: sampleData.question_type,
           question_text: sampleData.question_text,
           answer_text: sampleData.answer_text,
