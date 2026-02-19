@@ -118,9 +118,23 @@ console.log(`📊 Row data:`, sampleAnswers.rows);
         };
       }).filter(result => result !== null);
       
-      console.log(`✅ Retrieved ${enrichedResults.length} similar examples with full details`);
-      
-      return enrichedResults;
+      // FIX 6: Re-rank by combined score (similarity x quality)
+      // Prevents a highly similar but mediocre answer beating a slightly less similar excellent one
+      // Example: similarity=0.95 x score=2/5=0.40 -> combined=0.38
+      //          similarity=0.80 x score=5/5=1.00 -> combined=0.80 (wins)
+      const rerankedResults = enrichedResults
+        .map(result => ({
+          ...result,
+          combined_score: result.similarity * (result.score / 5)
+        }))
+        .sort((a, b) => b.combined_score - a.combined_score);
+
+      console.log(`Retrieved ${rerankedResults.length} examples, re-ranked by similarity x quality:`);
+      rerankedResults.forEach(r =>
+        console.log(`  ID ${r.id}: similarity=${r.similarity.toFixed(3)}, quality=${r.score}/5, combined=${r.combined_score.toFixed(3)}`)
+      );
+
+      return rerankedResults;
       
     } catch (error) {
       console.error('❌ Semantic search error:', error);
