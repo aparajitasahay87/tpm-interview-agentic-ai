@@ -192,15 +192,28 @@ class CombinedAnalyzer {
           ],
 
           competency_reasoning: {
-            description: "REQUIRED for every competency before the competencies object. Must follow this exact structure for each:",
-            format: {
-              competency_name: "exact name from rubric",
-              closest_level: "level_1 | level_3 | level_5",
-              descriptor_quoted: "verbatim quote of the matching level descriptor from rubrics",
-              evidence_found: "specific phrase or sentence from candidate answer that matches",
-              score: "integer 1-5 derived from closest_level (level_1→1-2, level_3→3, level_5→4-5)"
+            description: "REQUIRED — output ONE entry PER competency as a flat object keyed by competency name. Do NOT collapse into a single 'format' example. Every competency in the rubrics array must have its own entry.",
+            example_structure: {
+              "Adaptability": {
+                "closest_level": "level_3",
+                "descriptor_quoted": "exact quote from rubric level_3",
+                "evidence_found": "exact phrase from inventory",
+                "score": 3
+              },
+              "Communication": {
+                "closest_level": "level_1",
+                "descriptor_quoted": "exact quote from rubric level_1",
+                "evidence_found": "exact phrase from inventory or none",
+                "score": 2
+              }
             },
-            rule: "If you cannot quote a descriptor, you cannot assign a score. No descriptor = no score."
+            rules: [
+              "Output ALL competencies — never skip one",
+              "Keys must match exact competency names from rubrics",
+              "Score must be integer 1-5 — never 0",
+              "descriptor_quoted must be verbatim from rubric — not paraphrased",
+              "evidence_found must be from evidence_inventory — not raw answer"
+            ]
           }
         },
         
@@ -227,7 +240,7 @@ class CombinedAnalyzer {
           }
         },
         
-        competencies: "Object with competency names as keys (string) and scores as values (integer 1-5). Each score must be backed by competency_reasoning above.",
+        competencies: "Object with competency names as keys (string) and scores as values (integer 1-5). NEVER use 0 — minimum score is 1. Each score must match the score in competency_reasoning above. Every competency in rubrics must appear here.",
         
         improvements: [
           {
@@ -451,6 +464,12 @@ Example: "Action scored 4/5 but inventory shows no tools, no specific stakeholde
 TYPE 3 - HALLUCINATED EVIDENCE:
 Feedback or reasoning references something NOT in the evidence_inventory.
 Example: "Feedback says 'candidate mentioned AWS' but inventory shows tools: none. Remove this reference."
+
+TYPE 4 - INVALID ZERO SCORES:
+Any competency scored 0 is invalid — minimum score is 1.
+If competency_reasoning exists for that competency, use that score.
+If no reasoning exists, assign 1 as minimum.
+Example: "Adaptability scored 0 but competency_reasoning shows score=2. Correct to 2."
 
 RETURN JSON — follow this format exactly:
 {
