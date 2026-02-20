@@ -98,8 +98,12 @@ class CombinedAnalyzer {
       // Step 5: Validate scores
       const validatedAnalysis = this.validateAnalysis(analysis, rubrics);
 
-      console.log('✅ Combined analysis complete');
-      return validatedAnalysis;
+      // Step 6: CRITIC LOOP - second pass to catch score contradictions
+      console.log('🔍 Running critic pass to verify scores...');
+      const criticedAnalysis = await this.runCriticPass(validatedAnalysis, userAnswer, rubrics);
+
+      console.log('✅ Combined analysis complete (with critic verification)');
+      return criticedAnalysis;
 
     } catch (error) {
       console.error('❌ Combined analysis error:', error.message);
@@ -147,7 +151,7 @@ class CombinedAnalyzer {
       })),
       instructions: {
         star_analysis: "Break down the answer into Situation, Task, Action, Result. Score each component 1-5 based on clarity, specificity, and impact.",
-        competency_scoring: "Score each competency using the provided rubrics (1-5). Quote the level descriptor (level_1, level_3, or level_5) that best matches the evidence before assigning a score.",
+        competency_scoring: "For EACH competency: (1) find the closest matching level descriptor (level_1=1-2, level_3=3, level_5=4-5), (2) quote that descriptor verbatim, (3) cite the specific evidence from the candidate answer, (4) THEN assign the score. A score with no quoted descriptor is invalid.",
         improvements: "Generate copy-paste ready improvements by referencing specific elements from ideal_examples. Be concrete and actionable.",
         critical_rules: [
           "Use exact numbers and details from ideal_examples when available",
@@ -156,41 +160,48 @@ class CombinedAnalyzer {
           "Provide exact text to paste, not generic advice",
           "Only suggest improvements for components scoring < 4.5",
           "All scores must be integers between 0-5",
-          "For competency scoring: quote the matching rubric level descriptor before assigning score"
+          "COMPETENCY RULE: You MUST quote the rubric level descriptor before assigning any competency score. No exceptions. Format: descriptor_quoted → evidence_found → score"
         ]
       },
       output_format: {
         internal_reasoning: {
           description: "COMPLETE THIS FIRST before providing scores. This is your internal thought process - be explicit about what you see.",
           
-          gap_analysis: [
-            "List 3-5 specific data points present in ideal_examples but MISSING from candidate_answer",
-            "Format: 'Missing: [element]. Ideal has: [specific detail]. Candidate has: [what they have or none]'",
-            "Example: 'Missing: company context. Ideal has: Meta (Fortune 500). Candidate has: generic tech company'",
-            "Example: 'Missing: quantified team size. Ideal has: 8 engineering teams. Candidate has: multiple teams'",
-            "Example: 'Missing: specific timeline. Ideal has: Q1 2024 (3 months). Candidate has: no timeline'",
-            "Use star_breakdown from ideal_examples to identify component-level gaps precisely"
-          ],
-          
-          element_by_element_comparison: {
-            description: "For EACH STAR component, compare ideal star_breakdown vs candidate - use the pre-parsed star_breakdown fields directly",
-            situation: "Ideal star_breakdown.situation has: [list]. Candidate has: [list]. Missing: [specific gaps]",
-            task: "Ideal star_breakdown.task has: [list]. Candidate has: [list]. Missing: [specific gaps]",
-            action: "Ideal star_breakdown.action has: [list]. Candidate has: [list]. Missing: [specific gaps]",
-            result: "Ideal star_breakdown.result has: [list]. Candidate has: [list]. Missing: [specific gaps]"
+          evidence_inventory: {
+            description: "COMPLETE THIS FIRST — extract only what is explicitly in the candidate answer",
+            tools_systems: "list or 'none'",
+            stakeholders: "list or 'generic: my team'",
+            metrics_numbers: "list or 'none'",
+            timeline: "list or 'none'",
+            company_team_context: "list or 'none'",
+            seniority_signals: "list or 'none'"
           },
-          
-          score_reasoning: [
-            "For EACH component scoring < 5, explain: 'Scoring [component] as [X]/5 because [specific gap from above]'",
-            "Example: 'Scoring Situation as 3/5 because missing company context and team size (gaps identified above)'",
-            "Link each score directly to a gap you identified"
+
+          gap_analysis: [
+            "Compare inventory against ideal_examples star_breakdown and metadata",
+            "Format: 'Missing: [element]. Ideal has: [specific detail]. Candidate inventory has: [what was found or none]'",
+            "Example: 'Missing: company context. Ideal has: Meta (Fortune 500). Candidate inventory has: none'",
+            "Example: 'Missing: quantified metrics. Ideal has: 51% improvement. Candidate inventory has: none'",
+            "Only reference what is in the evidence_inventory — no assumptions"
           ],
 
-          competency_reasoning: [
-            "For EACH competency, quote the rubric level descriptor that matches before assigning score",
-            "Example: 'Stakeholder Management → level_3 says [quote descriptor]. Candidate shows [evidence]. Score: 3'",
-            "This must come before the competencies object in your output"
-          ]
+          score_reasoning: [
+            "For EACH component: 'Scoring [component] as [X]/5 because inventory shows [present items] but missing [gaps]'",
+            "Example: 'Scoring Result as 2/5 because inventory has no metrics, no timeline, no business impact'",
+            "Link every score to inventory findings"
+          ],
+
+          competency_reasoning: {
+            description: "REQUIRED for every competency before the competencies object. Must follow this exact structure for each:",
+            format: {
+              competency_name: "exact name from rubric",
+              closest_level: "level_1 | level_3 | level_5",
+              descriptor_quoted: "verbatim quote of the matching level descriptor from rubrics",
+              evidence_found: "specific phrase or sentence from candidate answer that matches",
+              score: "integer 1-5 derived from closest_level (level_1→1-2, level_3→3, level_5→4-5)"
+            },
+            rule: "If you cannot quote a descriptor, you cannot assign a score. No descriptor = no score."
+          }
         },
         
         star: {
@@ -239,58 +250,66 @@ ${JSON.stringify(promptData, null, 2)}
 
 CHAIN OF THOUGHT ANALYSIS PROCESS:
 
-STEP 1 - IDENTIFY GAPS FIRST (Most Important):
-Before doing anything else, go through ideal_examples and list EVERY specific data point they have that the candidate is missing.
-- Don't just say "lacks detail" - identify THE EXACT MISSING ELEMENTS
-- Format: "Missing: [specific thing]. Ideal has [concrete example]. Candidate has [what they have or none]"
-- Be surgical: "Missing: company name" not "Missing: context"
-- Use star_breakdown fields from ideal_examples - these are pre-parsed STAR components, use them directly
-- Look at metadata fields especially:
-  - context.organizational_scale, context.scope, context.seniority_indicators
-  - complexity_signals.team_scale, complexity_signals.timeline, complexity_signals.constraints
-  - execution_evidence.stakeholder_collaboration, execution_evidence.tools_technologies
-  - impact_signals.quantified_metrics, impact_signals.comparative_metrics
+STEP 1 - EVIDENCE INVENTORY (Ground Truth — Do This First):
+Extract ONLY what is explicitly stated in the candidate_answer. Do not infer or assume.
+List exactly what is present:
+- Tools/Systems: [e.g. "JIRA, AWS" or "none mentioned"]
+- Stakeholders: [e.g. "VP of Engineering, 3 eng teams" or "generic: my team"]
+- Metrics/Numbers: [e.g. "50% faster, $2M saved" or "none"]
+- Timeline: [e.g. "6 months, Q1 2024" or "none"]
+- Company/Team context: [e.g. "Meta, Payments team" or "none"]
+- Seniority signals: [e.g. "led cross-functional team, reported to CTO" or "none"]
 
-STEP 2 - ELEMENT-BY-ELEMENT COMPARISON:
-For each STAR component, use the star_breakdown from ideal_examples to create a direct side-by-side comparison:
+RULE: This inventory is your ground truth. You cannot reference anything in scoring or 
+feedback that is NOT in this inventory. No hallucinated evidence allowed.
+
+STEP 2 - GAP ANALYSIS (Inventory vs Ideal):
+Compare your Evidence Inventory against ideal_examples star_breakdown and metadata.
+For each STAR component identify the delta:
 - What does ideal_example star_breakdown.[component] contain?
-- What does the candidate have in that component?
-- What is the delta (what's missing)?
+- What is in the candidate's inventory for this component?
+- What is missing? (reference inventory — not the raw answer)
 
-This is NOT impressionistic - list concrete things like "team size: 8 teams" vs "team size: not mentioned"
-Note the company and level of the ideal example to contextualize the scale (e.g. "Senior TPM at Meta managing 8 teams")
+Format: "Missing: [element]. Ideal has: [specific detail from star_breakdown]. Candidate inventory has: [what was found or none]"
+Use metadata fields: context.organizational_scale, complexity_signals.team_scale, 
+execution_evidence.tools_technologies, impact_signals.quantified_metrics
 
-STEP 3 - SCORE BASED ON GAPS:
-Now score each STAR component (0-5) using the gaps you just identified:
-- 5 = No gaps, has everything ideal examples have
-- 4 = Minor gaps (1-2 small elements missing)
-- 3 = Moderate gaps (missing important context like timeline or scale)
-- 2 = Major gaps (missing multiple key elements)
-- 1 = Severe gaps (barely any concrete details)
+STEP 3 - SCORE + COMPETENCIES:
+STAR Scoring — use gaps from Step 2:
+- 5 = Inventory matches everything ideal examples have
+- 4 = 1-2 minor items missing from inventory
+- 3 = Important items missing (timeline, scale, or metrics)
+- 2 = Multiple key items missing from inventory
+- 1 = Inventory is nearly empty
 
-IMPORTANT: Write explicit reasoning for EACH score linking it to the gaps you identified in Step 1.
-Example: "Scoring Result as 3/5 because: Missing quantified metrics (gap #2) and missing before/after comparison (gap #4)"
+Write score reasoning: "Scoring [component] as [X]/5 because inventory shows [what's present] 
+but is missing [specific gaps from Step 2]"
 
-STEP 4 - SCORE COMPETENCIES:
-Use the same gap-based approach for competencies.
-REQUIRED: Quote the rubric level descriptor (level_1, level_3, or level_5) that best matches before assigning each score.
-Example: "Stakeholder Management: level_3 says '[quote descriptor]'. Candidate shows [evidence]. Score: 3"
-Do NOT assign scores without quoting the matching descriptor first.
+Competency Scoring — for EACH competency:
+1. Read level_1, level_3, level_5 descriptors
+2. Match against Evidence Inventory (not raw answer)
+3. QUOTE the matching descriptor verbatim
+4. Cite the specific inventory item as evidence
+5. Assign score (level_1→1-2, level_3→3, level_5→4-5)
 
-STEP 5 - GENERATE GAP-FILLING REWRITES:
+FORMAT: "[Competency]: closest_level=level_3, descriptor='[quote]', evidence='[from inventory]', score=3"
+A score with no quoted descriptor is invalid.
+
+STEP 4 - GAP-FILLING REWRITES:
 For each gap scoring < 4.5:
-1. State the gap explicitly (copy from Step 1)
-2. Quote the candidate's current text
-3. Rewrite it showing how to fill the gap using ideal_example's star_breakdown, company, level, and metadata fields (impact_signals.quantified_metrics, complexity_signals.constraints, execution_evidence.tools_technologies etc.)
-4. Don't say "add metrics" - write "I reduced latency from 340ms to 165ms (51% improvement)"
+1. State the gap (from Step 2)
+2. Quote candidate's current text
+3. Write complete rewrite using ideal_example star_breakdown, company, level, 
+   and metadata (impact_signals.quantified_metrics, execution_evidence.tools_technologies)
+4. Never say "add metrics" — write "I reduced latency from 340ms to 165ms (51% improvement)"
 
 CRITICAL RULES:
-- Internal reasoning MUST come first in your JSON output
-- Every score must reference a specific gap from your internal_reasoning
-- Improvements are REWRITES not suggestions ("Here's the improved version:" not "Consider adding:")
-- Use exact details from ideal_examples in rewrites: star_breakdown content, company names, level context, and metadata signals (impact_signals.quantified_metrics, complexity_signals.team_scale, execution_evidence.tools_technologies)
+- Evidence Inventory is ground truth — never reference evidence not in the inventory
+- Every score must reference inventory findings and gaps
+- Rewrites are complete replacements not suggestions
+- Use exact details from ideal_examples: star_breakdown, company, level, metadata signals
 
-Now, work through these 5 steps systematically, then return your final analysis in the specified output_format as valid JSON.`;
+Now work through all 4 steps, then return your final analysis in the specified output_format as valid JSON.`;
   }
 
   /**
@@ -325,6 +344,158 @@ Now, work through these 5 steps systematically, then return your final analysis 
         
       });
     }, 'combined-analysis');
+  }
+
+  /**
+   * CRITIC LOOP - Pass 2
+   * Reviews the draft analysis for score contradictions
+   * Uses gpt-4o-mini (cheaper) since it's reviewing structured JSON not generating from scratch
+   */
+  async runCriticPass(draftAnalysis, userAnswer, rubrics) {
+    try {
+      const criticPrompt = this.buildCriticPrompt(draftAnalysis, userAnswer, rubrics);
+
+      const response = await this.rateLimiter.execute(async () => {
+        return await this.circuitBreaker.execute(async () => {
+          return await this.openai.chat.completions.create({
+            model: 'gpt-4o-mini',   // Cheaper model sufficient for review task
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a strict TPM interview scoring auditor. Your job is to find contradictions between evidence and scores, then correct them. Return only valid JSON.'
+              },
+              {
+                role: 'user',
+                content: criticPrompt
+              }
+            ],
+            temperature: 0.1,       // Very low — critic should be deterministic
+            max_tokens: 2000,
+            response_format: { type: 'json_object' }
+          });
+        });
+      }, 'critic-pass');
+
+      const criticResult = JSON.parse(response.choices[0].message.content);
+      console.log('📋 Critic pass complete');
+
+      // Log any corrections made
+      if (criticResult.corrections_made && criticResult.corrections_made.length > 0) {
+        console.log(`⚠️  Critic corrected ${criticResult.corrections_made.length} score(s):`);
+        criticResult.corrections_made.forEach(c => console.log(`   ${c}`));
+      } else {
+        console.log('✅ Critic found no contradictions — scores validated');
+      }
+
+      // Merge critic corrections back into the draft analysis
+      return this.mergeCriticCorrections(draftAnalysis, criticResult);
+
+    } catch (error) {
+      // If critic fails, return original analysis — never block on critic errors
+      console.warn('⚠️  Critic pass failed, returning draft analysis:', error.message);
+      return draftAnalysis;
+    }
+  }
+
+  /**
+   * Build the critic prompt
+   * Provides draft analysis and asks critic to find contradictions
+   */
+  buildCriticPrompt(draftAnalysis, userAnswer, rubrics) {
+    return `You are auditing a TPM interview coach's scoring for accuracy.
+
+CANDIDATE ANSWER:
+"${userAnswer}"
+
+DRAFT ANALYSIS TO REVIEW:
+${JSON.stringify({
+  star: draftAnalysis.star,
+  competencies: draftAnalysis.competencies,
+  internal_reasoning: draftAnalysis.internal_reasoning
+}, null, 2)}
+
+RUBRICS:
+${JSON.stringify(rubrics.map(r => ({
+  competency: r.competency_name,
+  level_1: r.level_1_description || r.level_1,
+  level_3: r.level_3_description || r.level_3,
+  level_5: r.level_5_description || r.level_5
+})), null, 2)}
+
+YOUR AUDIT TASK:
+Use the evidence_inventory in internal_reasoning as your ground truth.
+For each STAR component and competency, check for these contradiction types:
+
+TYPE 1 - SCORE TOO LOW:
+Evidence exists in inventory but score does not reflect it.
+Example: "Inventory shows '50% faster' but Result scored 2/5. This metric matches level_3, score should be 3/5."
+
+TYPE 2 - SCORE TOO HIGH:
+Score given but inventory does not contain supporting evidence.
+Example: "Action scored 4/5 but inventory shows no tools, no specific stakeholders — only generic 'worked with team'. Should be 2/5."
+
+TYPE 3 - HALLUCINATED EVIDENCE:
+Feedback or reasoning references something NOT in the evidence_inventory.
+Example: "Feedback says 'candidate mentioned AWS' but inventory shows tools: none. Remove this reference."
+
+RETURN JSON:
+{
+  "corrections_made": ["list of corrections as strings, empty array if none"],
+  "star_corrections": {
+    "situation": { "corrected_score": null, "corrected_feedback": null },
+    "task": { "corrected_score": null, "corrected_feedback": null },
+    "action": { "corrected_score": null, "corrected_feedback": null },
+    "result": { "corrected_score": null, "corrected_feedback": null }
+  },
+  "competency_corrections": {},
+  "critic_notes": "overall assessment of draft quality"
+}
+
+Use null for fields that need NO correction. Only populate fields where you found a genuine contradiction.
+Be conservative — only correct when contradiction is clear and evidence-based.`;
+  }
+
+  /**
+   * Merge critic corrections into draft analysis
+   * Only overwrites fields where critic found genuine contradictions
+   */
+  mergeCriticCorrections(draftAnalysis, criticResult) {
+    const merged = JSON.parse(JSON.stringify(draftAnalysis)); // deep clone
+
+    // Apply STAR corrections
+    if (criticResult.star_corrections) {
+      ['situation', 'task', 'action', 'result'].forEach(component => {
+        const correction = criticResult.star_corrections[component];
+        if (correction) {
+          if (correction.corrected_score !== null && correction.corrected_score !== undefined) {
+            console.log(`  📝 Correcting ${component} score: ${merged.star[component].score} → ${correction.corrected_score}`);
+            merged.star[component].score = correction.corrected_score;
+          }
+          if (correction.corrected_feedback !== null && correction.corrected_feedback !== undefined) {
+            merged.star[component].feedback = correction.corrected_feedback;
+          }
+        }
+      });
+    }
+
+    // Apply competency corrections
+    if (criticResult.competency_corrections) {
+      Object.entries(criticResult.competency_corrections).forEach(([competency, correctedScore]) => {
+        if (correctedScore !== null && correctedScore !== undefined && merged.competencies[competency] !== undefined) {
+          console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${correctedScore}`);
+          merged.competencies[competency] = correctedScore;
+        }
+      });
+    }
+
+    // Add critic metadata to response for transparency
+    merged._critic = {
+      corrections_made: criticResult.corrections_made || [],
+      critic_notes: criticResult.critic_notes || '',
+      corrections_count: (criticResult.corrections_made || []).length
+    };
+
+    return merged;
   }
 
   /**
