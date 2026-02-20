@@ -95,15 +95,17 @@ class CombinedAnalyzer {
       console.log('🤖 Running combined analysis (with circuit breaker + rate limiter)...');
       const analysis = await this.callCombinedAPI(prompt, rubrics);
 
-      // Step 5: Validate scores
-      const validatedAnalysis = this.validateAnalysis(analysis, rubrics);
-
-      // Step 6: CRITIC LOOP - second pass to catch score contradictions
+      // Step 5: CRITIC LOOP - second pass to catch score contradictions
+      // Run BEFORE validateAnalysis so critic corrections are applied first
       console.log('🔍 Running critic pass to verify scores...');
-      const criticedAnalysis = await this.runCriticPass(validatedAnalysis, userAnswer, rubrics);
+      const criticedAnalysis = await this.runCriticPass(analysis, userAnswer, rubrics);
+
+      // Step 6: Validate scores AFTER critic corrections are applied
+      // This ensures zero scores are recovered using competency_reasoning AFTER critic fixes
+      const validatedAnalysis = this.validateAnalysis(criticedAnalysis, rubrics);
 
       console.log('✅ Combined analysis complete (with critic verification)');
-      return criticedAnalysis;
+      return validatedAnalysis;
 
     } catch (error) {
       console.error('❌ Combined analysis error:', error.message);
