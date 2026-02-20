@@ -286,14 +286,28 @@ Write score reasoning: "Scoring [component] as [X]/5 because inventory shows [wh
 but is missing [specific gaps from Step 2]"
 
 Competency Scoring — for EACH competency:
-1. Read level_1, level_3, level_5 descriptors
-2. Match against Evidence Inventory (not raw answer)
-3. QUOTE the matching descriptor verbatim
-4. Cite the specific inventory item as evidence
-5. Assign score (level_1→1-2, level_3→3, level_5→4-5)
+1. Read ALL THREE level descriptors (level_1, level_3, level_5)
+2. Start from level_5 and work DOWN — ask "does the inventory support this level?"
+3. Do NOT default to level_1 — check level_3 and level_5 first
+4. QUOTE the matching descriptor verbatim
+5. Cite the specific inventory item as evidence
+6. Assign score (level_1→1-2, level_3→3, level_5→4-5)
 
-FORMAT: "[Competency]: closest_level=level_3, descriptor='[quote]', evidence='[from inventory]', score=3"
+INVENTORY SIGNALS THAT INDICATE LEVEL_3 MINIMUM:
+- Specific tools named (JIRA, AWS, Terraform etc.) → minimum score 2-3
+- Named stakeholder groups (engineering teams, product managers) → minimum score 2-3
+- Specific timeline mentioned (8 months, Q1 2024) → minimum score 2-3
+- Coordination across multiple teams → minimum score 2-3
+
+INVENTORY SIGNALS THAT INDICATE LEVEL_5:
+- C-suite or VP-level stakeholders
+- Quantified business impact (ROI, cost savings, % improvement)
+- Cross-organizational coalition building (3+ orgs)
+- Framework or process adopted company-wide
+
+FORMAT: "[Competency]: closest_level=level_3, descriptor='[exact quote]', evidence='[from inventory]', score=3"
 A score with no quoted descriptor is invalid.
+Do NOT assign level_1 if inventory contains specific tools, teams, or timelines.
 
 STEP 4 - GAP-FILLING REWRITES:
 For each gap scoring < 4.5:
@@ -507,6 +521,161 @@ CRITICAL FORMAT RULES:
     }
 
     // Add critic metadata to response for transparency
+    // This field is preserved through validateAnalysis and returned to the API
+    merged._critic = {
+      corrections_made: criticResult.corrections_made || [],
+      critic_notes: criticResult.critic_notes || '',
+      corrections_count: (criticResult.corrections_made || []).length,
+      ran: true
+    };
+
+    console.log(`  📊 Critic summary: ${merged._critic.corrections_count} corrections, notes: "${merged._critic.critic_notes?.substring(0, 80)}"`);
+
+    return merged;
+  }
+
+  /**
+   * CRITIC LOOP - Pass 2
+   * Reviews the draft analysis for score contradictions
+   * Uses gpt-4o-mini (cheaper) since it's reviewing structured JSON not generating from scratch
+   */
+  async runCriticPass(draftAnalysis, userAnswer, rubrics) {
+    try {
+      const criticPrompt = this.buildCriticPrompt(draftAnalysis, userAnswer, rubrics);
+
+      const response = await this.rateLimiter.execute(async () => {
+        return await this.circuitBreaker.execute(async () => {
+          return await this.openai.chat.completions.create({
+            model: 'gpt-4o-mini',   // Cheaper model sufficient for review task
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a strict TPM interview scoring auditor. Your job is to find contradictions between evidence and scores, then correct them. Return only valid JSON.'
+              },
+              {
+                role: 'user',
+                content: criticPrompt
+              }
+            ],
+            temperature: 0.1,       // Very low — critic should be deterministic
+            max_tokens: 2000,
+            response_format: { type: 'json_object' }
+          });
+        });
+      }, 'critic-pass');
+
+      const criticResult = JSON.parse(response.choices[0].message.content);
+      console.log('📋 Critic pass complete');
+
+      // Log any corrections made
+      if (criticResult.corrections_made && criticResult.corrections_made.length > 0) {
+        console.log(`⚠️  Critic corrected ${criticResult.corrections_made.length} score(s):`);
+        criticResult.corrections_made.forEach(c => console.log(`   ${c}`));
+      } else {
+        console.log('✅ Critic found no contradictions — scores validated');
+      }
+
+      // Merge critic corrections back into the draft analysis
+      return this.mergeCriticCorrections(draftAnalysis, criticResult);
+
+    } catch (error) {
+      // If critic fails, return original analysis — never block on critic errors
+      console.warn('⚠️  Critic pass failed, returning draft analysis:', error.message);
+      return draftAnalysis;
+    }
+  }
+
+  /**
+   * Build the critic prompt
+   * Provides draft analysis and asks critic to find contradictions
+   */
+  buildCriticPrompt(draftAnalysis, userAnswer, rubrics) {
+    return `You are auditing a TPM interview coach's scoring for accuracy.
+
+CANDIDATE ANSWER:
+"${userAnswer}"
+
+DRAFT ANALYSIS TO REVIEW:
+${JSON.stringify({
+  star: draftAnalysis.star,
+  competencies: draftAnalysis.competencies,
+  internal_reasoning: draftAnalysis.internal_reasoning
+}, null, 2)}
+
+RUBRICS:
+${JSON.stringify(rubrics.map(r => ({
+  competency: r.competency_name,
+  level_1: r.level_1_description || r.level_1,
+  level_3: r.level_3_description || r.level_3,
+  level_5: r.level_5_description || r.level_5
+})), null, 2)}
+
+YOUR AUDIT TASK:
+For each STAR component and each competency, check for these contradiction types:
+
+TYPE 1 - SCORE TOO LOW:
+"The candidate mentioned [specific evidence] but was scored [X]/5. This evidence matches level_[Y] descriptor which justifies [X+1]/5."
+Example: "Candidate said '50% faster' but Result scored 2/5. This quantified metric matches level_3 descriptor, score should be 3/5."
+
+TYPE 2 - SCORE TOO HIGH:
+"The coach scored [X]/5 but the reasoning only shows evidence for level_[Y] which is [X-1]/5."
+Example: "Action scored 4/5 but reasoning only cites generic stakeholder coordination, no specific tools or frameworks — should be 3/5."
+
+TYPE 3 - HALLUCINATED EVIDENCE:
+"The reasoning references [detail] but this is NOT in the candidate answer."
+Example: "Feedback says 'candidate mentioned AWS' but the answer never mentions AWS."
+
+RETURN JSON:
+{
+  "corrections_made": ["list of corrections as strings, empty array if none"],
+  "star_corrections": {
+    "situation": { "corrected_score": null, "corrected_feedback": null },
+    "task": { "corrected_score": null, "corrected_feedback": null },
+    "action": { "corrected_score": null, "corrected_feedback": null },
+    "result": { "corrected_score": null, "corrected_feedback": null }
+  },
+  "competency_corrections": {},
+  "critic_notes": "overall assessment of draft quality"
+}
+
+Use null for fields that need NO correction. Only populate fields where you found a genuine contradiction.
+Be conservative — only correct when contradiction is clear and evidence-based.`;
+  }
+
+  /**
+   * Merge critic corrections into draft analysis
+   * Only overwrites fields where critic found genuine contradictions
+   */
+  mergeCriticCorrections(draftAnalysis, criticResult) {
+    const merged = JSON.parse(JSON.stringify(draftAnalysis)); // deep clone
+
+    // Apply STAR corrections
+    if (criticResult.star_corrections) {
+      ['situation', 'task', 'action', 'result'].forEach(component => {
+        const correction = criticResult.star_corrections[component];
+        if (correction) {
+          if (correction.corrected_score !== null && correction.corrected_score !== undefined) {
+            console.log(`  📝 Correcting ${component} score: ${merged.star[component].score} → ${correction.corrected_score}`);
+            merged.star[component].score = correction.corrected_score;
+          }
+          if (correction.corrected_feedback !== null && correction.corrected_feedback !== undefined) {
+            merged.star[component].feedback = correction.corrected_feedback;
+          }
+        }
+      });
+    }
+
+    // Apply competency corrections
+    if (criticResult.competency_corrections) {
+      Object.entries(criticResult.competency_corrections).forEach(([competency, correctedScore]) => {
+        if (correctedScore !== null && correctedScore !== undefined && merged.competencies[competency] !== undefined) {
+          console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${correctedScore}`);
+          merged.competencies[competency] = correctedScore;
+        }
+      });
+    }
+
+    // Add critic metadata to response for transparency
     merged._critic = {
       corrections_made: criticResult.corrections_made || [],
       critic_notes: criticResult.critic_notes || '',
@@ -584,6 +753,9 @@ CRITICAL FORMAT RULES:
       console.warn('⚠️  Missing improvements array, initializing empty');
       analysis.improvements = [];
     }
+
+    // Preserve _critic metadata through validation — never strip it
+    // It is added by mergeCriticCorrections and must reach the API response
 
     console.log('✅ Validation complete');
     return analysis;

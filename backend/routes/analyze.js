@@ -88,7 +88,8 @@ router.post('/', async (req, res) => {
         competencies,
         improvements: analysis.improvements || [],
         gaps: analysis.gaps || {},
-        internal_reasoning: analysis.internal_reasoning || null
+        internal_reasoning: analysis.internal_reasoning || null,
+        _critic: analysis._critic || null  // critic loop metadata — corrections made, notes
       }
     });
 
