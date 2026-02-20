@@ -438,7 +438,7 @@ TYPE 3 - HALLUCINATED EVIDENCE:
 Feedback or reasoning references something NOT in the evidence_inventory.
 Example: "Feedback says 'candidate mentioned AWS' but inventory shows tools: none. Remove this reference."
 
-RETURN JSON:
+RETURN JSON — follow this format exactly:
 {
   "corrections_made": ["list of corrections as strings, empty array if none"],
   "star_corrections": {
@@ -447,12 +447,19 @@ RETURN JSON:
     "action": { "corrected_score": null, "corrected_feedback": null },
     "result": { "corrected_score": null, "corrected_feedback": null }
   },
-  "competency_corrections": {},
+  "competency_corrections": {
+    "CompetencyName": 3
+  },
   "critic_notes": "overall assessment of draft quality"
 }
 
-Use null for fields that need NO correction. Only populate fields where you found a genuine contradiction.
-Be conservative — only correct when contradiction is clear and evidence-based.`;
+CRITICAL FORMAT RULES:
+- competency_corrections values must be plain integers ONLY — never objects
+- Example correct:   "Adaptability": 2
+- Example WRONG:     "Adaptability": { "corrected_score": 2 }
+- star_corrections use null for fields that need no correction
+- Only populate fields where you found a genuine contradiction
+- Be conservative — only correct when contradiction is clear and evidence-based`;
   }
 
   /**
@@ -479,11 +486,22 @@ Be conservative — only correct when contradiction is clear and evidence-based.
     }
 
     // Apply competency corrections
+    // Handle both integer format (correct) and object format (defensive fallback)
     if (criticResult.competency_corrections) {
       Object.entries(criticResult.competency_corrections).forEach(([competency, correctedScore]) => {
-        if (correctedScore !== null && correctedScore !== undefined && merged.competencies[competency] !== undefined) {
-          console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${correctedScore}`);
-          merged.competencies[competency] = correctedScore;
+        if (correctedScore === null || correctedScore === undefined) return;
+        if (merged.competencies[competency] === undefined) return;
+
+        // Defensive: extract integer whether critic returned 3 or { corrected_score: 3 }
+        const finalScore = typeof correctedScore === 'object'
+          ? (correctedScore.corrected_score ?? null)
+          : correctedScore;
+
+        if (finalScore !== null && Number.isInteger(finalScore) && finalScore >= 0 && finalScore <= 5) {
+          console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${finalScore}`);
+          merged.competencies[competency] = finalScore;
+        } else {
+          console.warn(`  ⚠️  Skipping invalid critic correction for ${competency}: ${JSON.stringify(correctedScore)}`);
         }
       });
     }
@@ -524,23 +542,40 @@ Be conservative — only correct when contradiction is clear and evidence-based.
       });
     }
 
-    // Validate competency scores (reuse logic from RubricScorer)
+    // Validate competency scores
+    // Fallback: if competencies object has 0, check competency_reasoning for correct score
     if (analysis.competencies) {
       const validatedCompetencies = {};
-      
+      const reasoningMap = {};
+
+      // Build a map from competency_reasoning if available
+      // Handles both array format and object format from LLM
+      const reasoning = analysis.internal_reasoning?.competency_reasoning;
+      if (reasoning && typeof reasoning === 'object') {
+        Object.entries(reasoning).forEach(([key, val]) => {
+          if (val && typeof val === 'object' && val.score !== undefined) {
+            reasoningMap[key] = parseInt(val.score);
+          }
+        });
+      }
+
       rubrics.forEach(rubric => {
         const competencyName = rubric.competency_name;
         const score = analysis.competencies[competencyName];
-        
-        // Validate score is 0-5 integer
-        if (typeof score === 'number' && score >= 0 && score <= 5 && Number.isInteger(score)) {
+
+        if (typeof score === 'number' && score > 0 && score <= 5 && Number.isInteger(score)) {
+          // Valid non-zero score — use it
           validatedCompetencies[competencyName] = score;
+        } else if (reasoningMap[competencyName] && reasoningMap[competencyName] > 0) {
+          // Score was 0 but reasoning has a valid score — use reasoning score
+          console.log(`  🔧 Recovering ${competencyName} score from competency_reasoning: ${reasoningMap[competencyName]}`);
+          validatedCompetencies[competencyName] = reasoningMap[competencyName];
         } else {
-          console.warn(`⚠️  Invalid competency score for ${competencyName}: ${score}, defaulting to 0`);
-          validatedCompetencies[competencyName] = 0;
+          console.warn(`⚠️  Invalid competency score for ${competencyName}: ${score}, defaulting to 1`);
+          validatedCompetencies[competencyName] = 1; // default to 1 not 0 — 0 breaks frontend
         }
       });
-      
+
       analysis.competencies = validatedCompetencies;
     }
 
