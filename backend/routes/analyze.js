@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { getCacheService } = require('../services/CacheService');
-const CombinedAnalyzer = require('../agents/tools/CombinedAnalyzer_Production');
+const CombinedAnalyzer = require('../agents/tools/CombinedAnalyzer_Agentic');
 const STARParser = require('../agents/tools/STARParser');
 const RubricScorer = require('../agents/tools/RubricScorer');
 
