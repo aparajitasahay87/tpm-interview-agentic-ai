@@ -95,16 +95,25 @@ class CombinedAnalyzer {
       console.log('🤖 Running combined analysis (with circuit breaker + rate limiter)...');
       const analysis = await this.callCombinedAPI(prompt, rubrics);
 
-      // Step 5: CRITIC LOOP - second pass to catch score contradictions
-      // Run BEFORE validateAnalysis so critic corrections are applied first
-      console.log('🔍 Running critic pass to verify scores...');
-      const criticedAnalysis = await this.runCriticPass(analysis, userAnswer, rubrics);
+      // Step 5: AGENTIC QUALITY GATE
+      // The LLM evaluates Pass 2 output and decides what happens next — not the code.
+      // PROCEED       → evidence is sufficient, critic runs normally
+      // NEEDS_CONTEXT → specific weakness flagged, hint passed to critic to focus review
+      // Model: gpt-4o-mini (~$0.001, ~1-2s) | Non-blocking: failure defaults to PROCEED
+      console.log('🧠 Running agentic quality gate...');
+      const gateDecision = await this.runQualityGate(analysis, userAnswer);
+      console.log(`🚦 Gate: ${gateDecision.decision}${gateDecision.hint ? ' — ' + gateDecision.hint : ''}`);
 
-      // Step 6: Validate scores AFTER critic corrections are applied
+      // Step 6: CRITIC LOOP
+      // If gate returned NEEDS_CONTEXT, critic receives a targeted hint to focus its review
+      console.log('🔍 Running critic pass to verify scores...');
+      const criticedAnalysis = await this.runCriticPass(analysis, userAnswer, rubrics, gateDecision);
+
+      // Step 7: Validate scores AFTER critic corrections are applied
       // This ensures zero scores are recovered using competency_reasoning AFTER critic fixes
       const validatedAnalysis = this.validateAnalysis(criticedAnalysis, rubrics);
 
-      console.log('✅ Combined analysis complete (with critic verification)');
+      console.log('✅ Analysis complete (quality gate + critic verified)');
       return validatedAnalysis;
 
     } catch (error) {
@@ -162,7 +171,8 @@ class CombinedAnalyzer {
           "Provide exact text to paste, not generic advice",
           "Only suggest improvements for components scoring < 4.5",
           "All scores must be integers between 0-5",
-          "COMPETENCY RULE: You MUST quote the rubric level descriptor before assigning any competency score. No exceptions. Format: descriptor_quoted → evidence_found → score"
+          "COMPETENCY RULE: You MUST quote the rubric level descriptor before assigning any competency score. No exceptions. Format: descriptor_quoted → evidence_found → score",
+          "ANTI-HALLUCINATION RULE: Never invent frameworks (RICE, OKR, RACI etc), metrics, or tools that do not appear explicitly in the candidate answer OR in the ideal_examples metadata. Only reference details you can cite from ideal_examples."
         ]
       },
       output_format: {
@@ -380,9 +390,90 @@ Now work through all 4 steps, then return your final analysis in the specified o
    * Reviews the draft analysis for score contradictions
    * Uses gpt-4o-mini (cheaper) since it's reviewing structured JSON not generating from scratch
    */
-  async runCriticPass(draftAnalysis, userAnswer, rubrics) {
+
+  /**
+   * AGENTIC QUALITY GATE — The decision point that makes this pipeline genuinely agentic.
+   * The LLM evaluates its own Pass 2 output and decides the routing — not the code.
+   *
+   * PROCEED       → evidence sufficient, critic runs normally
+   * NEEDS_CONTEXT → specific weakness identified, hint injected into critic prompt
+   *
+   * Model: gpt-4o-mini | Temp: 0.1 | Max tokens: 150 | Non-blocking
+   */
+  async runQualityGate(analysis, userAnswer) {
     try {
-      const criticPrompt = this.buildCriticPrompt(draftAnalysis, userAnswer, rubrics);
+      const inv = analysis.internal_reasoning?.evidence_inventory || {};
+      const hasMetrics      = inv.metrics_numbers  && inv.metrics_numbers  !== 'none';
+      const hasStakeholders = inv.stakeholders     && !inv.stakeholders.toLowerCase().includes('generic');
+      const hasTimeline     = inv.timeline         && inv.timeline         !== 'none';
+      const hasTools        = inv.tools_systems    && inv.tools_systems    !== 'none';
+      const evidenceCount   = [hasMetrics, hasStakeholders, hasTimeline, hasTools].filter(Boolean).length;
+
+      const starScores = analysis.star
+        ? Object.entries(analysis.star).map(([k,v]) => `${k}: ${v?.score ?? '?'}/5`).join(', ')
+        : 'unavailable';
+
+      const gatePrompt = `You are a quality gate in a TPM interview coaching pipeline.
+
+Pass 2 analysis just completed. Make ONE routing decision:
+- PROCEED: evidence is sufficient to deliver useful coaching feedback
+- NEEDS_CONTEXT: a critical element is missing — flag it for the critic to focus on
+
+PASS 2 EVIDENCE SUMMARY:
+STAR scores: ${starScores}
+Evidence found:
+- Metrics/numbers:  ${hasMetrics      ? inv.metrics_numbers  : 'none'}
+- Stakeholders:     ${hasStakeholders ? inv.stakeholders      : 'generic only'}
+- Timeline:         ${hasTimeline     ? inv.timeline          : 'none'}
+- Tools/systems:    ${hasTools        ? inv.tools_systems     : 'none'}
+Evidence count: ${evidenceCount}/4
+
+DECISION RULES (apply in order):
+1. If all STAR scores >= 3  → PROCEED
+2. If evidenceCount >= 3    → PROCEED
+3. If evidenceCount <= 2 AND any STAR score <= 2 → NEEDS_CONTEXT
+4. Otherwise                → PROCEED
+
+If NEEDS_CONTEXT: identify the SINGLE most important missing element for the critic.
+
+Return JSON only:
+{
+  "decision": "PROCEED" or "NEEDS_CONTEXT",
+  "hint": "one sentence for the critic — null if PROCEED",
+  "reason": "one sentence explaining your decision"
+}`;
+
+      const response = await this.rateLimiter.execute(async () => {
+        return await this.circuitBreaker.execute(async () => {
+          return await this.openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'You are a quality gate. Return only valid JSON.' },
+              { role: 'user',   content: gatePrompt }
+            ],
+            temperature: 0.1,
+            max_tokens: 150,
+            response_format: { type: 'json_object' }
+          });
+        });
+      }, 'quality-gate');
+
+      const result = JSON.parse(response.choices[0].message.content);
+      if (!['PROCEED', 'NEEDS_CONTEXT'].includes(result.decision)) {
+        console.warn('⚠️  Quality gate invalid decision, defaulting to PROCEED');
+        return { decision: 'PROCEED', hint: null, reason: 'invalid response — defaulting' };
+      }
+      return { decision: result.decision, hint: result.hint || null, reason: result.reason || '' };
+
+    } catch (error) {
+      console.warn('⚠️  Quality gate failed, defaulting to PROCEED:', error.message);
+      return { decision: 'PROCEED', hint: null, reason: 'gate error — defaulting to proceed' };
+    }
+  }
+
+  async runCriticPass(draftAnalysis, userAnswer, rubrics, gateDecision = null) {
+    try {
+      const criticPrompt = this.buildCriticPrompt(draftAnalysis, userAnswer, rubrics, gateDecision);
 
       const response = await this.rateLimiter.execute(async () => {
         return await this.circuitBreaker.execute(async () => {
@@ -417,7 +508,7 @@ Now work through all 4 steps, then return your final analysis in the specified o
       }
 
       // Merge critic corrections back into the draft analysis
-      return this.mergeCriticCorrections(draftAnalysis, criticResult);
+      return this.mergeCriticCorrections(draftAnalysis, criticResult, gateDecision);
 
     } catch (error) {
       // If critic fails, return original analysis — never block on critic errors
@@ -430,8 +521,11 @@ Now work through all 4 steps, then return your final analysis in the specified o
    * Build the critic prompt
    * Provides draft analysis and asks critic to find contradictions
    */
-  buildCriticPrompt(draftAnalysis, userAnswer, rubrics) {
-    return `You are auditing a TPM interview coach's scoring for accuracy.
+  buildCriticPrompt(draftAnalysis, userAnswer, rubrics, gateDecision = null) {
+    const gateHint = gateDecision?.decision === 'NEEDS_CONTEXT' && gateDecision?.hint
+      ? `\nQUALITY GATE ALERT: The quality gate flagged this specific weakness:\n"${gateDecision.hint}"\nFocus your audit here first.\n`
+      : '';
+    return `You are auditing a TPM interview coach's scoring for accuracy.${gateHint}
 
 CANDIDATE ANSWER:
 "${userAnswer}"
@@ -473,6 +567,16 @@ If competency_reasoning exists for that competency, use that score.
 If no reasoning exists, assign 1 as minimum.
 Example: "Adaptability scored 0 but competency_reasoning shows score=2. Correct to 2."
 
+TYPE 5 - HALLUCINATION IN IMPROVEMENTS:
+A rewrite contains specific details (company names, metrics, frameworks, team sizes)
+that are NOT in the candidate answer AND NOT in the ideal examples.
+Example: "Improvement says 'RICE framework' but neither candidate nor ideal examples mention it."
+Note: Details FROM ideal examples in rewrites are CORRECT GROUNDING — do NOT flag these.
+
+TYPE 6 - IMPROVEMENTS NOT GROUNDED IN IDEAL EXAMPLES:
+A rewrite gives generic advice instead of using specific metrics/frameworks from ideal examples.
+Example: "Rewrite says 'add metrics' but ideal example has '30% adoption increase' — use that."
+
 RETURN JSON — follow this format exactly:
 {
   "corrections_made": ["list of corrections as strings, empty array if none"],
@@ -485,7 +589,8 @@ RETURN JSON — follow this format exactly:
   "competency_corrections": {
     "CompetencyName": 3
   },
-  "critic_notes": "overall assessment of draft quality"
+  "critic_notes": "overall assessment of draft quality",
+  "improvements_issues": ["list TYPE 5/6 issues found — empty array if none"]
 }
 
 CRITICAL FORMAT RULES:
@@ -501,7 +606,7 @@ CRITICAL FORMAT RULES:
    * Merge critic corrections into draft analysis
    * Only overwrites fields where critic found genuine contradictions
    */
-  mergeCriticCorrections(draftAnalysis, criticResult) {
+  mergeCriticCorrections(draftAnalysis, criticResult, gateDecision = null) {
     const merged = JSON.parse(JSON.stringify(draftAnalysis)); // deep clone
 
     // Apply STAR corrections
@@ -531,32 +636,50 @@ CRITICAL FORMAT RULES:
 
     // Apply competency corrections
     // Handle both integer format (correct) and object format (defensive fallback)
-    if (criticResult.competency_corrections) {
-      Object.entries(criticResult.competency_corrections).forEach(([competency, correctedScore]) => {
-        if (correctedScore === null || correctedScore === undefined) return;
-        if (merged.competencies[competency] === undefined) return;
+   // Handle both integer format (correct) and object format (defensive fallback)
+if (criticResult.competency_corrections) {
+  Object.entries(criticResult.competency_corrections).forEach(([competency, rawCorrection]) => {
+    if (rawCorrection === null || rawCorrection === undefined) return;
+    if (merged.competencies[competency] === undefined) return;
 
-        // Defensive: extract integer whether critic returned 3 or { corrected_score: 3 }
-        const finalScore = typeof correctedScore === 'object'
-          ? (correctedScore.corrected_score ?? null)
-          : correctedScore;
-
-        if (finalScore !== null && Number.isInteger(finalScore) && finalScore >= 0 && finalScore <= 5) {
-          console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${finalScore}`);
-          merged.competencies[competency] = finalScore;
-        } else {
-          console.warn(`  ⚠️  Skipping invalid critic correction for ${competency}: ${JSON.stringify(correctedScore)}`);
-        }
-      });
+    // 🏆 Senior TPM Fix: Find the numeric score regardless of the key name used by the LLM
+    let finalScore = null;
+    
+    if (typeof rawCorrection === 'object') {
+      // Look for common keys: 'corrected_score', 'score', or 'value'
+      finalScore = rawCorrection.corrected_score ?? rawCorrection.score ?? rawCorrection.value ?? null;
+      
+      // If still null, try to find the first number property in the object
+      if (finalScore === null) {
+        const firstNum = Object.values(rawCorrection).find(v => typeof v === 'number');
+        if (firstNum !== undefined) finalScore = firstNum;
+      }
+    } else {
+      finalScore = rawCorrection;
     }
 
-    // Add critic metadata to response for transparency
-    // This field is preserved through validateAnalysis and returned to the API
+    // Validation
+    const numericScore = parseInt(finalScore);
+    if (!isNaN(numericScore) && numericScore >= 0 && numericScore <= 5) {
+      console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${numericScore}`);
+      merged.competencies[competency] = numericScore;
+    } else {
+      console.warn(`  ⚠️  Skipping invalid critic correction for ${competency}: ${JSON.stringify(rawCorrection)}`);
+    }
+  });
+}
+    // Add critic + gate metadata to response — preserved through validateAnalysis to API
+    const improvementsIssues = criticResult.improvements_issues || [];
     merged._critic = {
-      corrections_made: criticResult.corrections_made || [],
-      critic_notes: criticResult.critic_notes || '',
-      corrections_count: (criticResult.corrections_made || []).length,
-      ran: true
+      corrections_made:        criticResult.corrections_made || [],
+      critic_notes:            criticResult.critic_notes || '',
+      corrections_count:       (criticResult.corrections_made || []).length,
+      improvements_issues:     improvementsIssues,
+      improvements_issues_count: improvementsIssues.length,
+      ran:                     true,
+      gate_decision:           gateDecision?.decision || 'PROCEED',
+      gate_hint:               gateDecision?.hint     || null,
+      gate_reason:             gateDecision?.reason   || null
     };
 
     console.log(`  📊 Critic summary: ${merged._critic.corrections_count} corrections, notes: "${merged._critic.critic_notes?.substring(0, 80)}"`);
@@ -569,9 +692,9 @@ CRITICAL FORMAT RULES:
    * Reviews the draft analysis for score contradictions
    * Uses gpt-4o-mini (cheaper) since it's reviewing structured JSON not generating from scratch
    */
-  async runCriticPass(draftAnalysis, userAnswer, rubrics) {
+  async runCriticPass(draftAnalysis, userAnswer, rubrics, gateDecision = null) {
     try {
-      const criticPrompt = this.buildCriticPrompt(draftAnalysis, userAnswer, rubrics);
+      const criticPrompt = this.buildCriticPrompt(draftAnalysis, userAnswer, rubrics, gateDecision);
 
       const response = await this.rateLimiter.execute(async () => {
         return await this.circuitBreaker.execute(async () => {
@@ -606,7 +729,7 @@ CRITICAL FORMAT RULES:
       }
 
       // Merge critic corrections back into the draft analysis
-      return this.mergeCriticCorrections(draftAnalysis, criticResult);
+      return this.mergeCriticCorrections(draftAnalysis, criticResult, gateDecision);
 
     } catch (error) {
       // If critic fails, return original analysis — never block on critic errors
@@ -676,7 +799,7 @@ Be conservative — only correct when contradiction is clear and evidence-based.
    * Merge critic corrections into draft analysis
    * Only overwrites fields where critic found genuine contradictions
    */
-  mergeCriticCorrections(draftAnalysis, criticResult) {
+  mergeCriticCorrections(draftAnalysis, criticResult, gateDecision = null) {
     const merged = JSON.parse(JSON.stringify(draftAnalysis)); // deep clone
 
     // Apply STAR corrections
@@ -704,20 +827,12 @@ Be conservative — only correct when contradiction is clear and evidence-based.
       });
     }
 
-    // Apply competency corrections — handle both integer and object format defensively
+    // Apply competency corrections
     if (criticResult.competency_corrections) {
       Object.entries(criticResult.competency_corrections).forEach(([competency, correctedScore]) => {
-        if (correctedScore === null || correctedScore === undefined) return;
-        if (merged.competencies[competency] === undefined) return;
-        const rawScore = typeof correctedScore === 'object'
-          ? (correctedScore.corrected_score ?? null)
-          : correctedScore;
-        const safeScore = parseInt(rawScore);
-        if (!isNaN(safeScore) && safeScore >= 1 && safeScore <= 5) {
-          console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${safeScore}`);
-          merged.competencies[competency] = safeScore;
-        } else {
-          console.warn(`  ⚠️  Skipping invalid critic correction for ${competency}: ${JSON.stringify(correctedScore)}`);
+        if (correctedScore !== null && correctedScore !== undefined && merged.competencies[competency] !== undefined) {
+          console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${correctedScore}`);
+          merged.competencies[competency] = correctedScore;
         }
       });
     }
