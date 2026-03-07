@@ -233,9 +233,8 @@ Check the comp_scores object — high scores on relevant competencies = high mat
       }
     };
 // Debug — confirm comp_category is present on candidates
-console.log('🔍 Candidate comp_categories:', candidates.map(c => `ID ${c.id}: ${c.comp_category }`).join(', '));
-console.log('🔍 Sample question_texts:', candidates.map(c => `ID ${c.id}: "${c.question_text}"`).join('\n'));
-    // ── Reranker prompt ────────────────────────────────────────────────────
+
+    // ── Reranker prompt ─────────────────────────────────────────────────
     const rerankPrompt = `Rank these ${candidates.length} TPM interview examples for the following candidate answer.
 
 CANDIDATE'S ANSWER:
