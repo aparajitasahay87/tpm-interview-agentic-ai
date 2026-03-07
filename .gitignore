@@ -42,3 +42,10 @@ temp/
 # Database
 *.sqlite
 *.db
+
+# Benchmark output
+benchmark_results*.json
+backend/routes/benchmark_results*.json
+
+# Backend environment
+backend/.env

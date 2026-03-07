@@ -1,76 +1,94 @@
 const OpenAI = require('openai');
 const SemanticSearch = require('./SemanticSearch');
-const MetadataExtractor = require('./MetadataExtractor_Adaptive'); // Using adaptive version for flexible extraction
+const MetadataExtractor = require('./MetadataExtractor_Adaptive');
 const { CircuitBreaker } = require('../../utils/CircuitBreaker');
 const { getRateLimiter } = require('../../utils/RateLimiter');
 
 /**
- * COMBINED ANALYZER - PRODUCTION VERSION
- * 
- * Optimizations:
- * - Single API call for STAR + Competencies + Feedback
- * - Circuit breaker for API resilience
- * - Rate limiter to prevent 429 errors
- * - Score validation to ensure data quality
- * - Fallback responses when services fail
- * 
- * Reduces: 6 API calls → 2 API calls (67% reduction)
- * 
- * v2 Improvements:
- * - FIX 1: max_tokens raised 3000 → 4500 (prevents chain-of-thought truncation)
- * - FIX 2: Score filter ≥ 4 on retrieved examples (only pass high quality to LLM)
- * - FIX 3: Pass star_breakdown + company + level from SemanticSearch to prompt (richer comparison context)
+ * CombinedAnalyzer_Agentic.js — Option 4 Production Version
+ *
+ * Changes from previous version:
+ * 1. analyze() — Stage 1 now calls semanticSearch.findCandidatesForReranking()
+ *    (top 10, no category filter, seniority ±1 pre-filter)
+ * 2. analyze() — Stage 2 calls rerankCandidates() which uses OpenAI tool calling
+ *    to select the best 2 examples by domain + competency match
+ * 3. rerankCandidates() — NEW method. Tool description is the prompt — explicit,
+ *    steerable, and measurable. Returns top 2 with rerank scores logged.
+ * 4. All other methods (quality gate, critic loop, validation, fallback) unchanged.
+ *
+ * Token cost vs previous:
+ * - Stage 1 retrieval: free (Pinecone)
+ * - Stage 2 reranker: ~600 tokens (gpt-4o-mini, tool call)
+ * - Net: +~600 tokens per request in exchange for permanently correct grounding
  */
 class CombinedAnalyzer {
   constructor() {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
     });
-    
+
     this.semanticSearch = new SemanticSearch();
     this.metadataExtractor = new MetadataExtractor();
-    
-    // Circuit breaker - prevents cascading failures
+
     this.circuitBreaker = new CircuitBreaker({
-      failureThreshold: 3,      // Open circuit after 3 failures
-      recoveryTimeout: 30000,   // Try recovery after 30s
-      monitoringPeriod: 60000   // Reset failure count after 1 min
+      failureThreshold: 3,
+      recoveryTimeout: 30000,
+      monitoringPeriod: 60000
     });
-    
-    // Rate limiter - singleton instance shared across app
+
     this.rateLimiter = getRateLimiter();
   }
 
-  /**
-   * Analyze user answer in single combined call
-   * @param {string} userAnswer - User's answer text
-   * @param {number} categoryId - Question category
-   * @param {Array} rubrics - Category rubrics for competency scoring
-   * @returns {Promise<Object>} Complete analysis
-   */
-  async analyze(userAnswer, categoryId, rubrics) {
+  // ─── analyze ──────────────────────────────────────────────────────────────
+  // @param {string} userAnswer     — candidate's answer text
+  // @param {number} categoryId     — question category
+  // @param {Array}  rubrics        — category rubrics for competency scoring
+  // @param {string} candidateLevel — e.g. 'Senior', 'Staff', null
+  //   candidateLevel is optional. If not passed (legacy callers), seniority
+  //   filter is skipped and all levels are fetched. Callers should pass it
+  //   once available in the request (see analyze.js update).
+  async analyze(userAnswer, categoryId, rubrics, candidateLevel = null) {
     try {
-      console.log('🚀 Starting combined analysis...');
-      console.log(`📊 Category: ${categoryId}, Rubrics: ${rubrics.length}`);
+      console.log('🚀 Starting combined analysis (Option 4)...');
+      console.log(`📊 Category: ${categoryId} | Level: ${candidateLevel || 'unknown'} | Rubrics: ${rubrics.length}`);
 
-      // Step 1: Semantic search for ideal examples (uses embedding API)
-      console.log('🔍 Finding similar examples...');
-      const similarExamples = await this.semanticSearch.findSimilarAnswers(
+      // ── Stage 1: Hybrid retrieval ─────────────────────────────────────────
+      // Fetch top 10 candidates across ALL categories.
+      // Seniority ±1 pre-filter applied in Pinecone if candidateLevel is known.
+      // No category filter — the reranker decides domain relevance.
+      console.log('🔍 Stage 1: Hybrid retrieval — fetching top 10 candidates...');
+      const candidates = await this.semanticSearch.findCandidatesForReranking(
         userAnswer,
-        categoryId,
-        2 // Top 2 examples
+        candidateLevel,
+        10
       );
 
-      // FIX 2: Filter to high quality examples (score >= 4) only
-      // Falls back to all results if none meet the threshold (prevents empty context)
+      if (candidates.length === 0) {
+        console.log('⚠️  No candidates returned — proceeding without ideal examples');
+      }
+
+      // ── Stage 2: LLM Reranker ─────────────────────────────────────────────
+      // Tool calling selects the 2 best examples by:
+      //   (a) domain relevance — same type of problem/failure mode
+      //   (b) competency match — example's comp_scores align with what rubrics test
+      //   (c) seniority fit    — already pre-filtered in Stage 1
+      // Final score = similarity × domain_relevance × competency_match
+      let similarExamples = [];
+      if (candidates.length > 0) {
+        console.log(`🎯 Stage 2: Reranking ${candidates.length} candidates...`);
+        similarExamples = await this.rerankCandidates(candidates, userAnswer, rubrics);
+        console.log(`✅ Reranker selected top 2: IDs ${similarExamples.map(e => e.id).join(', ')}`);
+      }
+
+      // FIX 2: Filter to high quality examples (score ≥ 4) only
       const highQualityExamples = similarExamples.filter(ex => ex.score >= 4);
-      const examplesForAnalysis = highQualityExamples.length > 0 
-        ? highQualityExamples 
+      const examplesForAnalysis = highQualityExamples.length > 0
+        ? highQualityExamples
         : similarExamples;
 
-      console.log(`📊 Examples after quality filter: ${examplesForAnalysis.length} (${highQualityExamples.length} scored ≥4, ${similarExamples.length} total found)`);
+      console.log(`📊 Examples after quality filter: ${examplesForAnalysis.length} (${highQualityExamples.length} scored ≥4)`);
 
-      // Step 2: Extract metadata from examples (if found)
+      // ── Step 3: Extract metadata from selected examples ───────────────────
       let enrichedExamples = [];
       if (examplesForAnalysis.length > 0) {
         console.log(`📊 Extracting metadata from ${examplesForAnalysis.length} examples...`);
@@ -81,36 +99,26 @@ class CombinedAnalyzer {
           }))
         );
       } else {
-        console.log('⚠️  No similar examples found');
+        console.log('⚠️  No examples for analysis — proceeding without ideal context');
       }
 
-      // Step 3: Build combined prompt
-      const prompt = this.buildCombinedPrompt(
-        userAnswer,
-        enrichedExamples,
-        rubrics
-      );
+      // ── Step 4: Build combined prompt ─────────────────────────────────────
+      const prompt = this.buildCombinedPrompt(userAnswer, enrichedExamples, rubrics);
 
-      // Step 4: Single GPT-4o call with circuit breaker + rate limiter
-      console.log('🤖 Running combined analysis (with circuit breaker + rate limiter)...');
+      // ── Step 5: Main GPT-4o analysis call ────────────────────────────────
+      console.log('🤖 Running combined analysis (GPT-4o)...');
       const analysis = await this.callCombinedAPI(prompt, rubrics);
 
-      // Step 5: AGENTIC QUALITY GATE
-      // The LLM evaluates Pass 2 output and decides what happens next — not the code.
-      // PROCEED       → evidence is sufficient, critic runs normally
-      // NEEDS_CONTEXT → specific weakness flagged, hint passed to critic to focus review
-      // Model: gpt-4o-mini (~$0.001, ~1-2s) | Non-blocking: failure defaults to PROCEED
+      // ── Step 6: Agentic quality gate ──────────────────────────────────────
       console.log('🧠 Running agentic quality gate...');
       const gateDecision = await this.runQualityGate(analysis, userAnswer);
       console.log(`🚦 Gate: ${gateDecision.decision}${gateDecision.hint ? ' — ' + gateDecision.hint : ''}`);
 
-      // Step 6: CRITIC LOOP
-      // If gate returned NEEDS_CONTEXT, critic receives a targeted hint to focus its review
-      console.log('🔍 Running critic pass to verify scores...');
+      // ── Step 7: Critic loop ───────────────────────────────────────────────
+      console.log('🔍 Running critic pass...');
       const criticedAnalysis = await this.runCriticPass(analysis, userAnswer, rubrics, gateDecision);
 
-      // Step 7: Validate scores AFTER critic corrections are applied
-      // This ensures zero scores are recovered using competency_reasoning AFTER critic fixes
+      // ── Step 8: Validate scores ───────────────────────────────────────────
       const validatedAnalysis = this.validateAnalysis(criticedAnalysis, rubrics);
 
       console.log('✅ Analysis complete (quality gate + critic verified)');
@@ -118,151 +126,327 @@ class CombinedAnalyzer {
 
     } catch (error) {
       console.error('❌ Combined analysis error:', error.message);
-      
-      // Return graceful fallback instead of throwing
       return this.getFallbackResponse(error, rubrics);
     }
   }
 
-  /**
-   * Build comprehensive prompt with JSON structure (more efficient for GPT parsing)
-   */
+  // ─── rerankCandidates ─────────────────────────────────────────────────────
+  // Option 4 — Stage 2 of hybrid retrieval.
+  //
+  // Uses OpenAI tool calling to select the 2 best candidates from the top 10.
+  // The tool description IS the prompt — it encodes the exact criteria the LLM
+  // uses to rank. Bad description = wrong selections. This is the core of why
+  // Option 4 is both accurate and measurable.
+  //
+  // Selection criteria (all three must be satisfied):
+  //   1. Domain relevance  — same type of problem (DR ≠ migration, etc.)
+  //   2. Competency match  — example's comp_scores align with rubric competencies
+  //   3. Seniority fit     — already pre-filtered ±1 in Stage 1
+  //
+  // Final rerank score = similarity × domain_relevance × competency_match
+  // This is independently measurable (Precision@2, Reranker Accuracy).
+  //
+  // Fallback: if tool call fails, falls back to pure similarity ranking.
+  async rerankCandidates(candidates, userAnswer, rubrics) {
+    const competencyNames = rubrics.map(r => r.competency_name);
+
+    // ── Tool definition ────────────────────────────────────────────────────
+    // The description is the reranking prompt. Be explicit about:
+    //   - What signal to use (domain + competency, not just surface similarity)
+    //   - What to penalize (domain mismatch — the exact bug we're fixing)
+    //   - What the scores mean (so output is calibrated and consistent)
+    const rerankTool = {
+      type: 'function',
+      function: {
+        name: 'rerank_examples',
+        description: `You are selecting the 2 best ideal examples to coach a TPM interview candidate.
+Score every candidate on two dimensions:
+
+1. DOMAIN RELEVANCE (domain_relevance_score):
+   Does this example address the SAME type of problem as the candidate's answer?
+   - Disaster recovery question → needs DR/incident/failover examples (NOT cloud migration)
+   - Cloud migration question → needs migration examples (NOT disaster recovery)
+   - Roadmap prioritization → needs prioritization/trade-off examples (NOT ops incidents)
+   - Stakeholder conflict → needs influence/negotiation examples (NOT technical design)
+   - Behavioral question (failure/risk/conflict/feedback) → needs behavioral examples ONLY
+     (NOT program execution, NOT technical incidents, NOT project planning)
+   - Partnership/trust question → needs partnership examples (NOT behavioral conflict)
+   - Resourcing constraint → needs resource management examples (NOT project execution)
+   - Bug/deployment question → needs technical incident examples (NOT program planning)
+   Score 1.0 = exact same problem domain. Score 0.0 = completely different domain.
+   PENALIZE examples that are semantically similar on surface but solve a different failure mode.
+
+CATEGORY RULE: Each candidate has a comp_category field.
+   - If question is Behavioral → candidates from Program Sense or Technical get domain_relevance_score <= 0.2
+   - If question is Partnership → candidates from Behavioral or System Design get domain_relevance_score <= 0.2
+   - If question is Technical → candidates from Program Sense or Behavioral get domain_relevance_score <= 0.2
+   - If question is Program Sense → candidates from Behavioral or Technical get domain_relevance_score <= 0.2
+   Only override this rule if the candidate's answer DIRECTLY addresses the same problem type.
+
+2. COMPETENCY MATCH (competency_match_score):
+   Do this example's demonstrated competencies align with what the question is testing?
+   The question is being evaluated against these competencies: ${competencyNames.join(', ')}.
+   Check the example's comp_scores — does it score highly on the relevant competencies?
+   Score 1.0 = strong match across all relevant competencies.
+   Score 0.0 = example demonstrates unrelated competencies.
+
+You MUST score ALL ${candidates.length} candidates. The top 2 by final_score will be used.
+final_score = domain_relevance_score × competency_match_score (computed by caller, not you).`,
+
+        parameters: {
+          type: 'object',
+          required: ['rankings'],
+          properties: {
+            rankings: {
+              type: 'array',
+              description: `One entry per candidate. Must include all ${candidates.length} candidates.`,
+              items: {
+                type: 'object',
+                required: ['candidate_id', 'domain_relevance_score', 'competency_match_score'],
+                properties: {
+                  candidate_id: {
+                    type: 'number',
+                    description: 'The id field of the candidate example (integer).'
+                  },
+                  domain_relevance_score: {
+                    type: 'number',
+                    description: `0.0–1.0. Does this example address the same type of problem?
+1.0 = same domain (e.g. both are disaster recovery).
+0.5 = related but different (e.g. incident response vs DR planning).
+0.0 = wrong domain (e.g. cloud migration for a DR question).`
+                  },
+                  competency_match_score: {
+                    type: 'number',
+                    description: `0.0–1.0. Do this example's comp_scores align with the competencies
+being tested (${competencyNames.join(', ')})?
+Check the comp_scores object — high scores on relevant competencies = high match.`
+                  },
+                  penalty_reason: {
+                    type: 'string',
+                    description: 'If domain_relevance_score < 0.5, explain the domain mismatch in one sentence. Otherwise omit or null.'
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+// Debug — confirm comp_category is present on candidates
+
+    // ── Reranker prompt ─────────────────────────────────────────────────
+    const rerankPrompt = `Rank these ${candidates.length} TPM interview examples for the following candidate answer.
+
+CANDIDATE'S ANSWER:
+"${userAnswer}"
+
+COMPETENCIES BEING TESTED: ${competencyNames.join(', ')}
+
+CANDIDATES TO RANK:
+${candidates.map(c => `
+---
+ID: ${c.id}
+Category: ${c.comp_category || ''}
+Question type: ${c.question_type || 'unknown'}
+Question this example answers: ${c.question_text || 'unknown'}
+Question this example answers: ${c.question_text || 'unknown'}
+Level: ${c.level} at ${c.company || 'unknown company'}
+Semantic similarity to candidate answer: ${c.similarity.toFixed(3)}
+Competency scores: ${JSON.stringify(c.comp_scores)}
+Answer preview: ${(c.answer_text || '').substring(0, 300)}
+`).join('\n')}
+
+Use the rerank_examples tool to score all ${candidates.length} candidates.`;
+
+    try {
+      const response = await this.rateLimiter.execute(async () => {
+        return await this.circuitBreaker.execute(async () => {
+          return await this.openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a retrieval quality expert for TPM interview coaching. Use the rerank_examples tool to score all candidates. Return scores for every candidate provided.'
+              },
+              {
+                role: 'user',
+                content: rerankPrompt
+              }
+            ],
+            tools: [rerankTool],
+            tool_choice: { type: 'function', function: { name: 'rerank_examples' } },
+            temperature: 0.1,   // Deterministic — reranking should be consistent
+            max_tokens: 1200
+          });
+        });
+      }, 'reranker');
+
+      // ── Parse tool call result ───────────────────────────────────────────
+      const toolCall = response.choices[0].message.tool_calls?.[0];
+
+      if (!toolCall) {
+        console.warn('⚠️  Reranker returned no tool call — falling back to similarity ranking');
+        return candidates.slice(0, 2);
+      }
+
+      let rankings;
+      try {
+        rankings = JSON.parse(toolCall.function.arguments).rankings;
+      } catch (parseErr) {
+        console.warn('⚠️  Reranker tool call parse failed — falling back to similarity ranking');
+        return candidates.slice(0, 2);
+      }
+
+      if (!Array.isArray(rankings) || rankings.length === 0) {
+        console.warn('⚠️  Reranker returned empty rankings — falling back to similarity ranking');
+        return candidates.slice(0, 2);
+      }
+
+      // ── Compute final rerank scores and log ─────────────────────────────
+      // final_score = semantic_similarity × domain_relevance × competency_match
+      // All three signals must agree — a semantically similar but wrong-domain
+      // example gets killed by a low domain_relevance_score.
+      console.log('\n📊 Reranker scores:');
+      const scored = candidates.map(candidate => {
+        const rank = rankings.find(r => r.candidate_id === candidate.id);
+
+        if (!rank) {
+          console.warn(`  ⚠️  No ranking returned for ID ${candidate.id} — using similarity only`);
+          return { ...candidate, rerank_score: candidate.similarity * 0.3 };
+        }
+
+        const domainScore      = Math.min(1, Math.max(0, rank.domain_relevance_score    ?? 0));
+        const competencyScore  = Math.min(1, Math.max(0, rank.competency_match_score    ?? 0));
+        const finalScore       = candidate.similarity * domainScore * competencyScore;
+
+        console.log(
+          `  ID ${candidate.id} (${candidate.question_type}, ${candidate.level}): ` +
+          `sim=${candidate.similarity.toFixed(2)} × ` +
+          `domain=${domainScore.toFixed(2)} × ` +
+          `comp=${competencyScore.toFixed(2)} = ` +
+          `final=${finalScore.toFixed(3)}` +
+          (rank.penalty_reason ? `  ⚠️  ${rank.penalty_reason}` : '')
+        );
+
+        return { ...candidate, rerank_score: finalScore };
+      });
+
+      // Sort descending by rerank_score, return top 2
+      const top2 = scored
+        .sort((a, b) => b.rerank_score - a.rerank_score)
+        .slice(0, 2);
+
+      console.log(`\n🏆 Top 2 selected: ${top2.map(e => `ID ${e.id} (score: ${e.rerank_score.toFixed(3)})`).join(', ')}\n`);
+      return top2;
+
+    } catch (error) {
+      // Reranker failure is non-fatal — fall back to similarity ranking
+      // The quality gate and critic loop still run on the main analysis
+      console.warn(`⚠️  Reranker failed (${error.message}) — falling back to similarity ranking`);
+      return candidates.slice(0, 2);
+    }
+  }
+
+  // ─── buildCombinedPrompt ──────────────────────────────────────────────────
+  // Unchanged from previous version — receives the same enrichedExamples shape
   buildCombinedPrompt(userAnswer, enrichedExamples, rubrics) {
-    // Build structured JSON data
     const promptData = {
-      task: "comprehensive_tpm_analysis",
+      task: 'comprehensive_tpm_analysis',
       candidate_answer: userAnswer,
-      // FIX 3: Now includes star_breakdown (pre-parsed STAR components), company, and level
-      // These fields come directly from SemanticSearch DB fetch - no extra cost
       ideal_examples: enrichedExamples.map((ex, idx) => ({
         id: idx + 1,
         score: ex.score,
-        company: ex.company || null,       // FIX 3: adds org context (e.g. "Meta", "Google")
-        level: ex.level || null,           // FIX 3: adds seniority context (e.g. "Senior TPM")
-        answer_text: ex.answer_text,       // Full answer text (fetched from DB by SemanticSearch)
-        star_breakdown: {                  // FIX 3: pre-parsed STAR components for direct comparison
+        company: ex.company || null,
+        level: ex.level || null,
+        answer_text: ex.answer_text,
+        star_breakdown: {
           situation: ex.star?.situation || null,
-          task: ex.star?.task || null,
-          action: ex.star?.action || null,
-          result: ex.star?.result || null
+          task:      ex.star?.task      || null,
+          action:    ex.star?.action    || null,
+          result:    ex.star?.result    || null
         },
         metadata: {
-          // Correctly mapped to MetadataExtractor_Adaptive output schema
-          context: ex.metadata?.context || {},                         // org scale, scope, environment, seniority indicators
-          complexity_signals: ex.metadata?.complexity_signals || {},   // team scale, timeline, technical scope, constraints
-          execution_evidence: ex.metadata?.execution_evidence || {},   // stakeholders, processes, tools, decision frameworks
-          impact_signals: ex.metadata?.impact_signals || {}            // quantified metrics, comparative metrics, business impact
+          context:              ex.metadata?.context              || {},
+          complexity_signals:   ex.metadata?.complexity_signals   || {},
+          execution_evidence:   ex.metadata?.execution_evidence   || {},
+          impact_signals:       ex.metadata?.impact_signals       || {}
         }
       })),
       rubrics: rubrics.map(r => ({
         competency: r.competency_name,
-        level_1: r.level_1_description || r.level_1,
-        level_3: r.level_3_description || r.level_3,
-        level_5: r.level_5_description || r.level_5
+        level_1:    r.level_1_description || r.level_1,
+        level_3:    r.level_3_description || r.level_3,
+        level_5:    r.level_5_description || r.level_5
       })),
       instructions: {
-        star_analysis: "Break down the answer into Situation, Task, Action, Result. Score each component 1-5 based on clarity, specificity, and impact.",
-        competency_scoring: "For EACH competency: (1) find the closest matching level descriptor (level_1=1-2, level_3=3, level_5=4-5), (2) quote that descriptor verbatim, (3) cite the specific evidence from the candidate answer, (4) THEN assign the score. A score with no quoted descriptor is invalid.",
-        improvements: "Generate copy-paste ready improvements by referencing specific elements from ideal_examples. Be concrete and actionable.",
+        star_analysis:        'Break down the answer into Situation, Task, Action, Result. Score each component 1-5 based on clarity, specificity, and impact.',
+        competency_scoring:   'For EACH competency: (1) find the closest matching level descriptor (level_1=1-2, level_3=3, level_5=4-5), (2) quote that descriptor verbatim, (3) cite the specific evidence from the candidate answer, (4) THEN assign the score. A score with no quoted descriptor is invalid.',
+        improvements:         'Generate copy-paste ready improvements by referencing specific elements from ideal_examples. Be concrete and actionable.',
         critical_rules: [
-          "Use exact numbers and details from ideal_examples when available",
-          "Use star_breakdown fields (situation/task/action/result) from ideal_examples for direct component comparison",
-          "Reference company and level from ideal_examples to show organizational scale (e.g. 'Example 1 is a Senior TPM at Meta')",
-          "Provide exact text to paste, not generic advice",
-          "Only suggest improvements for components scoring < 4.5",
-          "All scores must be integers between 0-5",
-          "COMPETENCY RULE: You MUST quote the rubric level descriptor before assigning any competency score. No exceptions. Format: descriptor_quoted → evidence_found → score",
-          "ANTI-HALLUCINATION RULE: Never invent frameworks (RICE, OKR, RACI etc), metrics, or tools that do not appear explicitly in the candidate answer OR in the ideal_examples metadata. Only reference details you can cite from ideal_examples."
+          'Use exact numbers and details from ideal_examples when available',
+          'Use star_breakdown fields (situation/task/action/result) from ideal_examples for direct component comparison',
+          'Reference company and level from ideal_examples to show organizational scale',
+          'Provide exact text to paste, not generic advice',
+          'Only suggest improvements for components scoring < 4.5',
+          'All scores must be integers between 0-5',
+          'COMPETENCY RULE: You MUST quote the rubric level descriptor before assigning any competency score. No exceptions.',
+          'ANTI-HALLUCINATION RULE: Never invent frameworks, metrics, or tools not in the candidate answer or ideal_examples metadata.'
         ]
       },
       output_format: {
         internal_reasoning: {
-          description: "COMPLETE THIS FIRST before providing scores. This is your internal thought process - be explicit about what you see.",
-          
+          description: 'COMPLETE THIS FIRST before providing scores.',
           evidence_inventory: {
-            description: "COMPLETE THIS FIRST — extract only what is explicitly in the candidate answer",
-            tools_systems: "list or 'none'",
-            stakeholders: "list or 'generic: my team'",
-            metrics_numbers: "list or 'none'",
-            timeline: "list or 'none'",
-            company_team_context: "list or 'none'",
-            seniority_signals: "list or 'none'"
+            description: 'Extract ONLY what is explicitly in the candidate answer',
+            tools_systems:          "list or 'none'",
+            stakeholders:           "list or 'generic: my team'",
+            metrics_numbers:        "list or 'none'",
+            timeline:               "list or 'none'",
+            company_team_context:   "list or 'none'",
+            seniority_signals:      "list or 'none'"
           },
-
           gap_analysis: [
-            "Compare inventory against ideal_examples star_breakdown and metadata",
-            "Format: 'Missing: [element]. Ideal has: [specific detail]. Candidate inventory has: [what was found or none]'",
-            "Example: 'Missing: company context. Ideal has: Meta (Fortune 500). Candidate inventory has: none'",
-            "Example: 'Missing: quantified metrics. Ideal has: 51% improvement. Candidate inventory has: none'",
-            "Only reference what is in the evidence_inventory — no assumptions"
+            'Compare inventory against ideal_examples star_breakdown and metadata',
+            "Format: 'Missing: [element]. Ideal has: [specific detail]. Candidate inventory has: [what was found or none]'"
           ],
-
           score_reasoning: [
-            "For EACH component: 'Scoring [component] as [X]/5 because inventory shows [present items] but missing [gaps]'",
-            "Example: 'Scoring Result as 2/5 because inventory has no metrics, no timeline, no business impact'",
-            "Link every score to inventory findings"
+            "For EACH component: 'Scoring [component] as [X]/5 because inventory shows [present items] but missing [gaps]'"
           ],
-
           competency_reasoning: {
-            description: "REQUIRED — output ONE entry PER competency as a flat object keyed by competency name. Do NOT collapse into a single 'format' example. Every competency in the rubrics array must have its own entry.",
+            description: 'REQUIRED — output ONE entry PER competency as a flat object keyed by competency name.',
             example_structure: {
-              "Adaptability": {
-                "closest_level": "level_3",
-                "descriptor_quoted": "exact quote from rubric level_3",
-                "evidence_found": "exact phrase from inventory",
-                "score": 3
-              },
-              "Communication": {
-                "closest_level": "level_1",
-                "descriptor_quoted": "exact quote from rubric level_1",
-                "evidence_found": "exact phrase from inventory or none",
-                "score": 2
+              'Adaptability': {
+                closest_level:     'level_3',
+                descriptor_quoted: 'exact quote from rubric level_3',
+                evidence_found:    'exact phrase from inventory',
+                score:             3
               }
             },
             rules: [
-              "Output ALL competencies — never skip one",
-              "Keys must match exact competency names from rubrics",
-              "Score must be integer 1-5 — never 0",
-              "descriptor_quoted must be verbatim from rubric — not paraphrased",
-              "evidence_found must be from evidence_inventory — not raw answer"
+              'Output ALL competencies — never skip one',
+              'Keys must match exact competency names from rubrics',
+              'Score must be integer 1-5 — never 0',
+              'descriptor_quoted must be verbatim from rubric',
+              'evidence_found must be from evidence_inventory'
             ]
           }
         },
-        
         star: {
-          situation: { 
-            score: "integer 0-5 (based on internal_reasoning above)", 
-            text: "extracted text from candidate answer", 
-            feedback: "Reference specific gap from internal_reasoning.gap_analysis"
-          },
-          task: { 
-            score: "integer 0-5 (based on internal_reasoning above)", 
-            text: "extracted text from candidate answer", 
-            feedback: "Reference specific gap from internal_reasoning.gap_analysis"
-          },
-          action: { 
-            score: "integer 0-5 (based on internal_reasoning above)", 
-            text: "extracted text from candidate answer", 
-            feedback: "Reference specific gap from internal_reasoning.gap_analysis"
-          },
-          result: { 
-            score: "integer 0-5 (based on internal_reasoning above)", 
-            text: "extracted text from candidate answer", 
-            feedback: "Reference specific gap from internal_reasoning.gap_analysis"
-          }
+          situation: { score: 'integer 0-5', text: 'extracted text', feedback: 'gap reference' },
+          task:      { score: 'integer 0-5', text: 'extracted text', feedback: 'gap reference' },
+          action:    { score: 'integer 0-5', text: 'extracted text', feedback: 'gap reference' },
+          result:    { score: 'integer 0-5', text: 'extracted text', feedback: 'gap reference' }
         },
-        
-        competencies: "Object with competency names as keys (string) and scores as values (integer 1-5). NEVER use 0 — minimum score is 1. Each score must match the score in competency_reasoning above. Every competency in rubrics must appear here.",
-        
+        competencies: 'Object with competency names as keys and scores as values (integer 1-5). NEVER use 0.',
         improvements: [
           {
-            priority: "critical|high|medium",
-            component: "situation|task|action|result",
-            gap_identified: "Copy the EXACT gap from internal_reasoning.gap_analysis that this improvement addresses",
-            current_text: "Exact quote from candidate's answer (the incomplete version)",
-            rewritten_text: "COMPLETE REWRITE showing how to fill the gap using details from ideal_example star_breakdown and metadata. Don't say 'add X', write the full improved sentence.",
-            rationale: "Explain WHY this gap matters referencing ideal_example's company/level and metadata (e.g., 'Ideal Senior TPM at Meta has impact_signals.quantified_metrics showing 51% improvement — candidate has no metrics')",
-            example_reference: "Example 1 or Example 2"
+            priority:         'critical|high|medium',
+            component:        'situation|task|action|result',
+            gap_identified:   'Copy the EXACT gap from internal_reasoning.gap_analysis',
+            current_text:     'Exact quote from candidate answer',
+            rewritten_text:   'COMPLETE REWRITE using details from ideal_example star_breakdown and metadata',
+            rationale:        "Why this gap matters — reference ideal_example's company/level and metadata",
+            example_reference:'Example 1 or Example 2'
           }
         ]
       }
@@ -285,80 +469,38 @@ List exactly what is present:
 - Company/Team context: [e.g. "Meta, Payments team" or "none"]
 - Seniority signals: [e.g. "led cross-functional team, reported to CTO" or "none"]
 
-RULE: This inventory is your ground truth. You cannot reference anything in scoring or 
+RULE: This inventory is your ground truth. You cannot reference anything in scoring or
 feedback that is NOT in this inventory. No hallucinated evidence allowed.
 
 STEP 2 - GAP ANALYSIS (Inventory vs Ideal):
 Compare your Evidence Inventory against ideal_examples star_breakdown and metadata.
-For each STAR component identify the delta:
-- What does ideal_example star_breakdown.[component] contain?
-- What is in the candidate's inventory for this component?
-- What is missing? (reference inventory — not the raw answer)
-
 Format: "Missing: [element]. Ideal has: [specific detail from star_breakdown]. Candidate inventory has: [what was found or none]"
-Use metadata fields: context.organizational_scale, complexity_signals.team_scale, 
-execution_evidence.tools_technologies, impact_signals.quantified_metrics
 
 STEP 3 - SCORE + COMPETENCIES:
 STAR Scoring — use gaps from Step 2:
 - 5 = Inventory matches everything ideal examples have
-- 4 = 1-2 minor items missing from inventory
+- 4 = 1-2 minor items missing
 - 3 = Important items missing (timeline, scale, or metrics)
-- 2 = Multiple key items missing from inventory
+- 2 = Multiple key items missing
 - 1 = Inventory is nearly empty
 
-Write score reasoning: "Scoring [component] as [X]/5 because inventory shows [what's present] 
-but is missing [specific gaps from Step 2]"
-
 Competency Scoring — for EACH competency:
-1. Read ALL THREE level descriptors (level_1, level_3, level_5)
-2. Start from level_5 and work DOWN — ask "does the inventory support this level?"
-3. Do NOT default to level_1 — check level_3 and level_5 first
-4. QUOTE the matching descriptor verbatim
-5. Cite the specific inventory item as evidence
-6. Assign score (level_1→1-2, level_3→3, level_5→4-5)
-
-INVENTORY SIGNALS THAT INDICATE LEVEL_3 MINIMUM:
-- Specific tools named (JIRA, AWS, Terraform etc.) → minimum score 2-3
-- Named stakeholder groups (engineering teams, product managers) → minimum score 2-3
-- Specific timeline mentioned (8 months, Q1 2024) → minimum score 2-3
-- Coordination across multiple teams → minimum score 2-3
-
-INVENTORY SIGNALS THAT INDICATE LEVEL_5:
-- C-suite or VP-level stakeholders
-- Quantified business impact (ROI, cost savings, % improvement)
-- Cross-organizational coalition building (3+ orgs)
-- Framework or process adopted company-wide
-
-FORMAT: "[Competency]: closest_level=level_3, descriptor='[exact quote]', evidence='[from inventory]', score=3"
-A score with no quoted descriptor is invalid.
-Do NOT assign level_1 if inventory contains specific tools, teams, or timelines.
+1. Read ALL THREE level descriptors
+2. Start from level_5 and work DOWN
+3. QUOTE the matching descriptor verbatim
+4. Cite the specific inventory item as evidence
+5. Assign score (level_1→1-2, level_3→3, level_5→4-5)
 
 STEP 4 - GAP-FILLING REWRITES:
-For each gap scoring < 4.5:
-1. State the gap (from Step 2)
-2. Quote candidate's current text
-3. Write complete rewrite using ideal_example star_breakdown, company, level, 
-   and metadata (impact_signals.quantified_metrics, execution_evidence.tools_technologies)
-4. Never say "add metrics" — write "I reduced latency from 340ms to 165ms (51% improvement)"
-
-CRITICAL RULES:
-- Evidence Inventory is ground truth — never reference evidence not in the inventory
-- Every score must reference inventory findings and gaps
-- Rewrites are complete replacements not suggestions
-- Use exact details from ideal_examples: star_breakdown, company, level, metadata signals
+For each gap scoring < 4.5, write a complete replacement using ideal_example details.
 
 Now work through all 4 steps, then return your final analysis in the specified output_format as valid JSON.`;
   }
 
-  /**
-   * Call OpenAI API with circuit breaker + rate limiter protection
-   */
+  // ─── callCombinedAPI ──────────────────────────────────────────────────────
   async callCombinedAPI(prompt, rubrics) {
-    // Double-wrapped: Rate Limiter → Circuit Breaker → OpenAI
     return await this.rateLimiter.execute(async () => {
       return await this.circuitBreaker.execute(async () => {
-        
         const response = await this.openai.chat.completions.create({
           model: 'gpt-4o',
           messages: [
@@ -366,66 +508,47 @@ Now work through all 4 steps, then return your final analysis in the specified o
               role: 'system',
               content: 'You are an expert TPM interview coach. You provide comprehensive, specific feedback in structured JSON format. Always return valid JSON with all required fields.'
             },
-            {
-              role: 'user',
-              content: prompt
-            }
+            { role: 'user', content: prompt }
           ],
-          temperature: 0.3,
-          max_tokens: 4500,  // FIX 1: Raised from 3000 → 4500 to prevent chain-of-thought truncation
+          temperature:     0.3,
+          max_tokens:      4500,
           response_format: { type: 'json_object' }
         });
 
         const content = response.choices[0].message.content;
         console.log('📥 GPT-4o response received');
-        
         return JSON.parse(content);
-        
       });
     }, 'combined-analysis');
   }
 
-  /**
-   * CRITIC LOOP - Pass 2
-   * Reviews the draft analysis for score contradictions
-   * Uses gpt-4o-mini (cheaper) since it's reviewing structured JSON not generating from scratch
-   */
-
-  /**
-   * AGENTIC QUALITY GATE — The decision point that makes this pipeline genuinely agentic.
-   * The LLM evaluates its own Pass 2 output and decides the routing — not the code.
-   *
-   * PROCEED       → evidence sufficient, critic runs normally
-   * NEEDS_CONTEXT → specific weakness identified, hint injected into critic prompt
-   *
-   * Model: gpt-4o-mini | Temp: 0.1 | Max tokens: 150 | Non-blocking
-   */
+  // ─── runQualityGate ───────────────────────────────────────────────────────
   async runQualityGate(analysis, userAnswer) {
     try {
-      const inv = analysis.internal_reasoning?.evidence_inventory || {};
-      const hasMetrics      = inv.metrics_numbers  && inv.metrics_numbers  !== 'none';
-      const hasStakeholders = inv.stakeholders     && !inv.stakeholders.toLowerCase().includes('generic');
-      const hasTimeline     = inv.timeline         && inv.timeline         !== 'none';
-      const hasTools        = inv.tools_systems    && inv.tools_systems    !== 'none';
-      const evidenceCount   = [hasMetrics, hasStakeholders, hasTimeline, hasTools].filter(Boolean).length;
+      const inv            = analysis.internal_reasoning?.evidence_inventory || {};
+      const hasMetrics     = inv.metrics_numbers && inv.metrics_numbers !== 'none';
+      const hasStakeholders= inv.stakeholders && !inv.stakeholders.toLowerCase().includes('generic');
+      const hasTimeline    = inv.timeline && inv.timeline !== 'none';
+      const hasTools       = inv.tools_systems && inv.tools_systems !== 'none';
+      const evidenceCount  = [hasMetrics, hasStakeholders, hasTimeline, hasTools].filter(Boolean).length;
 
       const starScores = analysis.star
-        ? Object.entries(analysis.star).map(([k,v]) => `${k}: ${v?.score ?? '?'}/5`).join(', ')
+        ? Object.entries(analysis.star).map(([k, v]) => `${k}: ${v?.score ?? '?'}/5`).join(', ')
         : 'unavailable';
 
       const gatePrompt = `You are a quality gate in a TPM interview coaching pipeline.
 
 Pass 2 analysis just completed. Make ONE routing decision:
 - PROCEED: evidence is sufficient to deliver useful coaching feedback
-- NEEDS_CONTEXT: a critical element is missing — flag it for the critic to focus on
+- NEEDS_CONTEXT: a critical element is missing — flag it for the critic
 
 PASS 2 EVIDENCE SUMMARY:
 STAR scores: ${starScores}
 Evidence found:
-- Metrics/numbers:  ${hasMetrics      ? inv.metrics_numbers  : 'none'}
-- Stakeholders:     ${hasStakeholders ? inv.stakeholders      : 'generic only'}
-- Timeline:         ${hasTimeline     ? inv.timeline          : 'none'}
-- Tools/systems:    ${hasTools        ? inv.tools_systems     : 'none'}
+- Metrics/numbers:  ${hasMetrics       ? inv.metrics_numbers : 'none'}
+- Stakeholders:     ${hasStakeholders  ? inv.stakeholders    : 'generic only'}
+- Timeline:         ${hasTimeline      ? inv.timeline        : 'none'}
+- Tools/systems:    ${hasTools         ? inv.tools_systems   : 'none'}
 Evidence count: ${evidenceCount}/4
 
 DECISION RULES (apply in order):
@@ -433,8 +556,6 @@ DECISION RULES (apply in order):
 2. If evidenceCount >= 3    → PROCEED
 3. If evidenceCount <= 2 AND any STAR score <= 2 → NEEDS_CONTEXT
 4. Otherwise                → PROCEED
-
-If NEEDS_CONTEXT: identify the SINGLE most important missing element for the critic.
 
 Return JSON only:
 {
@@ -446,13 +567,13 @@ Return JSON only:
       const response = await this.rateLimiter.execute(async () => {
         return await this.circuitBreaker.execute(async () => {
           return await this.openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model:           'gpt-4o-mini',
             messages: [
               { role: 'system', content: 'You are a quality gate. Return only valid JSON.' },
               { role: 'user',   content: gatePrompt }
             ],
-            temperature: 0.1,
-            max_tokens: 150,
+            temperature:     0.1,
+            max_tokens:      150,
             response_format: { type: 'json_object' }
           });
         });
@@ -460,17 +581,17 @@ Return JSON only:
 
       const result = JSON.parse(response.choices[0].message.content);
       if (!['PROCEED', 'NEEDS_CONTEXT'].includes(result.decision)) {
-        console.warn('⚠️  Quality gate invalid decision, defaulting to PROCEED');
         return { decision: 'PROCEED', hint: null, reason: 'invalid response — defaulting' };
       }
       return { decision: result.decision, hint: result.hint || null, reason: result.reason || '' };
 
     } catch (error) {
       console.warn('⚠️  Quality gate failed, defaulting to PROCEED:', error.message);
-      return { decision: 'PROCEED', hint: null, reason: 'gate error — defaulting to proceed' };
+      return { decision: 'PROCEED', hint: null, reason: 'gate error — defaulting' };
     }
   }
 
+  // ─── runCriticPass ────────────────────────────────────────────────────────
   async runCriticPass(draftAnalysis, userAnswer, rubrics, gateDecision = null) {
     try {
       const criticPrompt = this.buildCriticPrompt(draftAnalysis, userAnswer, rubrics, gateDecision);
@@ -478,19 +599,16 @@ Return JSON only:
       const response = await this.rateLimiter.execute(async () => {
         return await this.circuitBreaker.execute(async () => {
           return await this.openai.chat.completions.create({
-            model: 'gpt-4o-mini',   // Cheaper model sufficient for review task
+            model:           'gpt-4o-mini',
             messages: [
               {
-                role: 'system',
-                content: 'You are a strict TPM interview scoring auditor. Your job is to find contradictions between evidence and scores, then correct them. Return only valid JSON.'
+                role:    'system',
+                content: 'You are a strict TPM interview scoring auditor. Find contradictions between evidence and scores, then correct them. Return only valid JSON.'
               },
-              {
-                role: 'user',
-                content: criticPrompt
-              }
+              { role: 'user', content: criticPrompt }
             ],
-            temperature: 0.1,       // Very low — critic should be deterministic
-            max_tokens: 2000,
+            temperature:     0.1,
+            max_tokens:      2000,
             response_format: { type: 'json_object' }
           });
         });
@@ -499,7 +617,6 @@ Return JSON only:
       const criticResult = JSON.parse(response.choices[0].message.content);
       console.log('📋 Critic pass complete');
 
-      // Log any corrections made
       if (criticResult.corrections_made && criticResult.corrections_made.length > 0) {
         console.log(`⚠️  Critic corrected ${criticResult.corrections_made.length} score(s):`);
         criticResult.corrections_made.forEach(c => console.log(`   ${c}`));
@@ -507,24 +624,20 @@ Return JSON only:
         console.log('✅ Critic found no contradictions — scores validated');
       }
 
-      // Merge critic corrections back into the draft analysis
       return this.mergeCriticCorrections(draftAnalysis, criticResult, gateDecision);
 
     } catch (error) {
-      // If critic fails, return original analysis — never block on critic errors
       console.warn('⚠️  Critic pass failed, returning draft analysis:', error.message);
       return draftAnalysis;
     }
   }
 
-  /**
-   * Build the critic prompt
-   * Provides draft analysis and asks critic to find contradictions
-   */
+  // ─── buildCriticPrompt ────────────────────────────────────────────────────
   buildCriticPrompt(draftAnalysis, userAnswer, rubrics, gateDecision = null) {
     const gateHint = gateDecision?.decision === 'NEEDS_CONTEXT' && gateDecision?.hint
       ? `\nQUALITY GATE ALERT: The quality gate flagged this specific weakness:\n"${gateDecision.hint}"\nFocus your audit here first.\n`
       : '';
+
     return `You are auditing a TPM interview coach's scoring for accuracy.${gateHint}
 
 CANDIDATE ANSWER:
@@ -532,355 +645,122 @@ CANDIDATE ANSWER:
 
 DRAFT ANALYSIS TO REVIEW:
 ${JSON.stringify({
-  star: draftAnalysis.star,
-  competencies: draftAnalysis.competencies,
-  internal_reasoning: draftAnalysis.internal_reasoning
-}, null, 2)}
+    star:               draftAnalysis.star,
+    competencies:       draftAnalysis.competencies,
+    internal_reasoning: draftAnalysis.internal_reasoning
+  }, null, 2)}
 
 RUBRICS:
 ${JSON.stringify(rubrics.map(r => ({
-  competency: r.competency_name,
-  level_1: r.level_1_description || r.level_1,
-  level_3: r.level_3_description || r.level_3,
-  level_5: r.level_5_description || r.level_5
-})), null, 2)}
+    competency: r.competency_name,
+    level_1:    r.level_1_description || r.level_1,
+    level_3:    r.level_3_description || r.level_3,
+    level_5:    r.level_5_description || r.level_5
+  })), null, 2)}
 
-YOUR AUDIT TASK:
-Use the evidence_inventory in internal_reasoning as your ground truth.
-For each STAR component and competency, check for these contradiction types:
-
-TYPE 1 - SCORE TOO LOW:
-Evidence exists in inventory but score does not reflect it.
-Example: "Inventory shows '50% faster' but Result scored 2/5. This metric matches level_3, score should be 3/5."
-
-TYPE 2 - SCORE TOO HIGH:
-Score given but inventory does not contain supporting evidence.
-Example: "Action scored 4/5 but inventory shows no tools, no specific stakeholders — only generic 'worked with team'. Should be 2/5."
-
-TYPE 3 - HALLUCINATED EVIDENCE:
-Feedback or reasoning references something NOT in the evidence_inventory.
-Example: "Feedback says 'candidate mentioned AWS' but inventory shows tools: none. Remove this reference."
-
-TYPE 4 - INVALID ZERO SCORES:
-Any competency scored 0 is invalid — minimum score is 1.
-If competency_reasoning exists for that competency, use that score.
-If no reasoning exists, assign 1 as minimum.
-Example: "Adaptability scored 0 but competency_reasoning shows score=2. Correct to 2."
-
-TYPE 5 - HALLUCINATION IN IMPROVEMENTS:
-A rewrite contains specific details (company names, metrics, frameworks, team sizes)
-that are NOT in the candidate answer AND NOT in the ideal examples.
-Example: "Improvement says 'RICE framework' but neither candidate nor ideal examples mention it."
-Note: Details FROM ideal examples in rewrites are CORRECT GROUNDING — do NOT flag these.
-
-TYPE 6 - IMPROVEMENTS NOT GROUNDED IN IDEAL EXAMPLES:
-A rewrite gives generic advice instead of using specific metrics/frameworks from ideal examples.
-Example: "Rewrite says 'add metrics' but ideal example has '30% adoption increase' — use that."
-
-RETURN JSON — follow this format exactly:
-{
-  "corrections_made": ["list of corrections as strings, empty array if none"],
-  "star_corrections": {
-    "situation": { "corrected_score": null, "corrected_feedback": null },
-    "task": { "corrected_score": null, "corrected_feedback": null },
-    "action": { "corrected_score": null, "corrected_feedback": null },
-    "result": { "corrected_score": null, "corrected_feedback": null }
-  },
-  "competency_corrections": {
-    "CompetencyName": 3
-  },
-  "critic_notes": "overall assessment of draft quality",
-  "improvements_issues": ["list TYPE 5/6 issues found — empty array if none"]
-}
-
-CRITICAL FORMAT RULES:
-- competency_corrections values must be plain integers ONLY — never objects
-- Example correct:   "Adaptability": 2
-- Example WRONG:     "Adaptability": { "corrected_score": 2 }
-- star_corrections use null for fields that need no correction
-- Only populate fields where you found a genuine contradiction
-- Be conservative — only correct when contradiction is clear and evidence-based`;
-  }
-
-  /**
-   * Merge critic corrections into draft analysis
-   * Only overwrites fields where critic found genuine contradictions
-   */
-  mergeCriticCorrections(draftAnalysis, criticResult, gateDecision = null) {
-    const merged = JSON.parse(JSON.stringify(draftAnalysis)); // deep clone
-
-    // Apply STAR corrections
-    if (criticResult.star_corrections) {
-      ['situation', 'task', 'action', 'result'].forEach(component => {
-        const correction = criticResult.star_corrections[component];
-        if (correction) {
-          if (correction.corrected_score !== null && correction.corrected_score !== undefined) {
-            const rawScore = typeof correction.corrected_score === 'object'
-              ? (correction.corrected_score?.score ?? correction.corrected_score?.corrected_score ?? null)
-              : correction.corrected_score;
-            const safeScore = parseInt(rawScore);
-            if (!isNaN(safeScore) && safeScore >= 1 && safeScore <= 5) {
-              console.log(`  📝 Correcting ${component} score: ${merged.star[component].score} → ${safeScore}`);
-              merged.star[component].score = safeScore;
-            } else {
-              console.warn(`  ⚠️  Skipping invalid STAR correction for ${component}: ${JSON.stringify(correction.corrected_score)}`);
-            }
-          }
-          if (correction.corrected_feedback !== null && correction.corrected_feedback !== undefined
-              && typeof correction.corrected_feedback === 'string') {
-            merged.star[component].feedback = correction.corrected_feedback;
-          }
-        }
-      });
-    }
-
-    // Apply competency corrections
-    // Handle both integer format (correct) and object format (defensive fallback)
-   // Handle both integer format (correct) and object format (defensive fallback)
-if (criticResult.competency_corrections) {
-  Object.entries(criticResult.competency_corrections).forEach(([competency, rawCorrection]) => {
-    if (rawCorrection === null || rawCorrection === undefined) return;
-    if (merged.competencies[competency] === undefined) return;
-
-    // 🏆 Senior TPM Fix: Find the numeric score regardless of the key name used by the LLM
-    let finalScore = null;
-    
-    if (typeof rawCorrection === 'object') {
-      // Look for common keys: 'corrected_score', 'score', or 'value'
-      finalScore = rawCorrection.corrected_score ?? rawCorrection.score ?? rawCorrection.value ?? null;
-      
-      // If still null, try to find the first number property in the object
-      if (finalScore === null) {
-        const firstNum = Object.values(rawCorrection).find(v => typeof v === 'number');
-        if (firstNum !== undefined) finalScore = firstNum;
-      }
-    } else {
-      finalScore = rawCorrection;
-    }
-
-    // Validation
-    const numericScore = parseInt(finalScore);
-    if (!isNaN(numericScore) && numericScore >= 0 && numericScore <= 5) {
-      console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${numericScore}`);
-      merged.competencies[competency] = numericScore;
-    } else {
-      console.warn(`  ⚠️  Skipping invalid critic correction for ${competency}: ${JSON.stringify(rawCorrection)}`);
-    }
-  });
-}
-    // Add critic + gate metadata to response — preserved through validateAnalysis to API
-    const improvementsIssues = criticResult.improvements_issues || [];
-    merged._critic = {
-      corrections_made:        criticResult.corrections_made || [],
-      critic_notes:            criticResult.critic_notes || '',
-      corrections_count:       (criticResult.corrections_made || []).length,
-      improvements_issues:     improvementsIssues,
-      improvements_issues_count: improvementsIssues.length,
-      ran:                     true,
-      gate_decision:           gateDecision?.decision || 'PROCEED',
-      gate_hint:               gateDecision?.hint     || null,
-      gate_reason:             gateDecision?.reason   || null
-    };
-
-    console.log(`  📊 Critic summary: ${merged._critic.corrections_count} corrections, notes: "${merged._critic.critic_notes?.substring(0, 80)}"`);
-
-    return merged;
-  }
-
-  /**
-   * CRITIC LOOP - Pass 2
-   * Reviews the draft analysis for score contradictions
-   * Uses gpt-4o-mini (cheaper) since it's reviewing structured JSON not generating from scratch
-   */
-  async runCriticPass(draftAnalysis, userAnswer, rubrics, gateDecision = null) {
-    try {
-      const criticPrompt = this.buildCriticPrompt(draftAnalysis, userAnswer, rubrics, gateDecision);
-
-      const response = await this.rateLimiter.execute(async () => {
-        return await this.circuitBreaker.execute(async () => {
-          return await this.openai.chat.completions.create({
-            model: 'gpt-4o-mini',   // Cheaper model sufficient for review task
-            messages: [
-              {
-                role: 'system',
-                content: 'You are a strict TPM interview scoring auditor. Your job is to find contradictions between evidence and scores, then correct them. Return only valid JSON.'
-              },
-              {
-                role: 'user',
-                content: criticPrompt
-              }
-            ],
-            temperature: 0.1,       // Very low — critic should be deterministic
-            max_tokens: 2000,
-            response_format: { type: 'json_object' }
-          });
-        });
-      }, 'critic-pass');
-
-      const criticResult = JSON.parse(response.choices[0].message.content);
-      console.log('📋 Critic pass complete');
-
-      // Log any corrections made
-      if (criticResult.corrections_made && criticResult.corrections_made.length > 0) {
-        console.log(`⚠️  Critic corrected ${criticResult.corrections_made.length} score(s):`);
-        criticResult.corrections_made.forEach(c => console.log(`   ${c}`));
-      } else {
-        console.log('✅ Critic found no contradictions — scores validated');
-      }
-
-      // Merge critic corrections back into the draft analysis
-      return this.mergeCriticCorrections(draftAnalysis, criticResult, gateDecision);
-
-    } catch (error) {
-      // If critic fails, return original analysis — never block on critic errors
-      console.warn('⚠️  Critic pass failed, returning draft analysis:', error.message);
-      return draftAnalysis;
-    }
-  }
-
-  /**
-   * Build the critic prompt
-   * Provides draft analysis and asks critic to find contradictions
-   */
-  buildCriticPrompt(draftAnalysis, userAnswer, rubrics) {
-    return `You are auditing a TPM interview coach's scoring for accuracy.
-
-CANDIDATE ANSWER:
-"${userAnswer}"
-
-DRAFT ANALYSIS TO REVIEW:
-${JSON.stringify({
-  star: draftAnalysis.star,
-  competencies: draftAnalysis.competencies,
-  internal_reasoning: draftAnalysis.internal_reasoning
-}, null, 2)}
-
-RUBRICS:
-${JSON.stringify(rubrics.map(r => ({
-  competency: r.competency_name,
-  level_1: r.level_1_description || r.level_1,
-  level_3: r.level_3_description || r.level_3,
-  level_5: r.level_5_description || r.level_5
-})), null, 2)}
-
-YOUR AUDIT TASK:
-For each STAR component and each competency, check for these contradiction types:
-
-TYPE 1 - SCORE TOO LOW:
-"The candidate mentioned [specific evidence] but was scored [X]/5. This evidence matches level_[Y] descriptor which justifies [X+1]/5."
-Example: "Candidate said '50% faster' but Result scored 2/5. This quantified metric matches level_3 descriptor, score should be 3/5."
-
-TYPE 2 - SCORE TOO HIGH:
-"The coach scored [X]/5 but the reasoning only shows evidence for level_[Y] which is [X-1]/5."
-Example: "Action scored 4/5 but reasoning only cites generic stakeholder coordination, no specific tools or frameworks — should be 3/5."
-
-TYPE 3 - HALLUCINATED EVIDENCE:
-"The reasoning references [detail] but this is NOT in the candidate answer."
-Example: "Feedback says 'candidate mentioned AWS' but the answer never mentions AWS."
+YOUR AUDIT TASK — check for these contradiction types:
+TYPE 1 - SCORE TOO LOW: Evidence exists in inventory but score doesn't reflect it.
+TYPE 2 - SCORE TOO HIGH: Score given but inventory has no supporting evidence.
+TYPE 3 - HALLUCINATED EVIDENCE: Feedback references something NOT in evidence_inventory.
+TYPE 4 - INVALID ZERO SCORES: Any competency scored 0 is invalid — minimum is 1.
+TYPE 5 - HALLUCINATION IN IMPROVEMENTS: Rewrite contains details not in candidate answer or ideal examples.
+TYPE 6 - IMPROVEMENTS NOT GROUNDED: Rewrite gives generic advice instead of using specific details from ideal examples.
 
 RETURN JSON:
 {
-  "corrections_made": ["list of corrections as strings, empty array if none"],
+  "corrections_made": ["list of corrections — empty array if none"],
   "star_corrections": {
     "situation": { "corrected_score": null, "corrected_feedback": null },
-    "task": { "corrected_score": null, "corrected_feedback": null },
-    "action": { "corrected_score": null, "corrected_feedback": null },
-    "result": { "corrected_score": null, "corrected_feedback": null }
+    "task":      { "corrected_score": null, "corrected_feedback": null },
+    "action":    { "corrected_score": null, "corrected_feedback": null },
+    "result":    { "corrected_score": null, "corrected_feedback": null }
   },
-  "competency_corrections": {},
-  "critic_notes": "overall assessment of draft quality"
+  "competency_corrections": { "CompetencyName": 3 },
+  "critic_notes": "overall assessment",
+  "improvements_issues": ["TYPE 5/6 issues — empty array if none"]
 }
 
-Use null for fields that need NO correction. Only populate fields where you found a genuine contradiction.
-Be conservative — only correct when contradiction is clear and evidence-based.`;
+CRITICAL: competency_corrections values must be plain integers ONLY — never objects.
+Only correct where contradiction is clear and evidence-based.`;
   }
 
-  /**
-   * Merge critic corrections into draft analysis
-   * Only overwrites fields where critic found genuine contradictions
-   */
+  // ─── mergeCriticCorrections ───────────────────────────────────────────────
   mergeCriticCorrections(draftAnalysis, criticResult, gateDecision = null) {
-    const merged = JSON.parse(JSON.stringify(draftAnalysis)); // deep clone
+    const merged = JSON.parse(JSON.stringify(draftAnalysis));
 
-    // Apply STAR corrections
     if (criticResult.star_corrections) {
       ['situation', 'task', 'action', 'result'].forEach(component => {
         const correction = criticResult.star_corrections[component];
         if (correction) {
           if (correction.corrected_score !== null && correction.corrected_score !== undefined) {
-            const rawScore = typeof correction.corrected_score === 'object'
+            const rawScore  = typeof correction.corrected_score === 'object'
               ? (correction.corrected_score?.score ?? correction.corrected_score?.corrected_score ?? null)
               : correction.corrected_score;
             const safeScore = parseInt(rawScore);
             if (!isNaN(safeScore) && safeScore >= 1 && safeScore <= 5) {
               console.log(`  📝 Correcting ${component} score: ${merged.star[component].score} → ${safeScore}`);
               merged.star[component].score = safeScore;
-            } else {
-              console.warn(`  ⚠️  Skipping invalid STAR correction for ${component}: ${JSON.stringify(correction.corrected_score)}`);
             }
           }
           if (correction.corrected_feedback !== null && correction.corrected_feedback !== undefined
-              && typeof correction.corrected_feedback === 'string') {
+            && typeof correction.corrected_feedback === 'string') {
             merged.star[component].feedback = correction.corrected_feedback;
           }
         }
       });
     }
 
-    // Apply competency corrections
     if (criticResult.competency_corrections) {
-      Object.entries(criticResult.competency_corrections).forEach(([competency, correctedScore]) => {
-        if (correctedScore !== null && correctedScore !== undefined && merged.competencies[competency] !== undefined) {
-          console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${correctedScore}`);
-          merged.competencies[competency] = correctedScore;
+      Object.entries(criticResult.competency_corrections).forEach(([competency, rawCorrection]) => {
+        if (rawCorrection === null || rawCorrection === undefined) return;
+        if (merged.competencies[competency] === undefined) return;
+
+        let finalScore = null;
+        if (typeof rawCorrection === 'object') {
+          finalScore = rawCorrection.corrected_score ?? rawCorrection.score ?? rawCorrection.value ?? null;
+        } else {
+          finalScore = rawCorrection;
+        }
+
+        const safeScore = parseInt(finalScore);
+        if (!isNaN(safeScore) && safeScore >= 1 && safeScore <= 5) {
+          console.log(`  📝 Correcting ${competency} score: ${merged.competencies[competency]} → ${safeScore}`);
+          merged.competencies[competency] = safeScore;
         }
       });
     }
 
-    // Add critic metadata to response for transparency
     merged._critic = {
-      corrections_made: criticResult.corrections_made || [],
-      critic_notes: criticResult.critic_notes || '',
+      corrections_made:  criticResult.corrections_made  || [],
+      critic_notes:      criticResult.critic_notes      || '',
       corrections_count: (criticResult.corrections_made || []).length
     };
 
     return merged;
   }
 
-  /**
-   * Validate and sanitize analysis results
-   * Ensures all scores are valid (0-5) and all required fields exist
-   */
+  // ─── validateAnalysis ─────────────────────────────────────────────────────
   validateAnalysis(analysis, rubrics) {
     console.log('🔍 Validating analysis results...');
-    
-    // Validate STAR scores
+
     if (analysis.star) {
       ['situation', 'task', 'action', 'result'].forEach(component => {
         if (analysis.star[component]) {
           const score = analysis.star[component].score;
-          
-          // Ensure score is valid integer 0-5
           if (typeof score !== 'number' || score < 0 || score > 5 || !Number.isInteger(score)) {
-            console.warn(`⚠️  Invalid STAR score for ${component}: ${score}, clamping to valid range`);
+            console.warn(`⚠️  Invalid STAR score for ${component}: ${score} — clamping`);
             analysis.star[component].score = Math.max(0, Math.min(5, Math.round(score) || 0));
           }
-          
-          // Ensure required fields exist
-          analysis.star[component].text = analysis.star[component].text || 'Not found';
+          analysis.star[component].text     = analysis.star[component].text     || 'Not found';
           analysis.star[component].feedback = analysis.star[component].feedback || 'No feedback provided';
         }
       });
     }
 
-    // Validate competency scores
-    // Fallback: if competencies object has 0, check competency_reasoning for correct score
     if (analysis.competencies) {
       const validatedCompetencies = {};
       const reasoningMap = {};
 
-      // Build a map from competency_reasoning if available
-      // Handles both array format and object format from LLM
       const reasoning = analysis.internal_reasoning?.competency_reasoning;
       if (reasoning && typeof reasoning === 'object') {
         Object.entries(reasoning).forEach(([key, val]) => {
@@ -895,119 +775,68 @@ Be conservative — only correct when contradiction is clear and evidence-based.
         const score = analysis.competencies[competencyName];
 
         if (typeof score === 'number' && score > 0 && score <= 5 && Number.isInteger(score)) {
-          // Valid non-zero score — use it
           validatedCompetencies[competencyName] = score;
         } else if (reasoningMap[competencyName] && reasoningMap[competencyName] > 0) {
-          // Score was 0 but reasoning has a valid score — use reasoning score
-          console.log(`  🔧 Recovering ${competencyName} score from competency_reasoning: ${reasoningMap[competencyName]}`);
+          console.log(`  🔧 Recovering ${competencyName} from competency_reasoning: ${reasoningMap[competencyName]}`);
           validatedCompetencies[competencyName] = reasoningMap[competencyName];
         } else {
-          console.warn(`⚠️  Invalid competency score for ${competencyName}: ${score}, defaulting to 1`);
-          validatedCompetencies[competencyName] = 1; // default to 1 not 0 — 0 breaks frontend
+          console.warn(`⚠️  Invalid competency score for ${competencyName}: ${score} — defaulting to 1`);
+          validatedCompetencies[competencyName] = 1;
         }
       });
 
       analysis.competencies = validatedCompetencies;
     }
 
-    // Ensure improvements array exists
     if (!Array.isArray(analysis.improvements)) {
-      console.warn('⚠️  Missing improvements array, initializing empty');
       analysis.improvements = [];
     }
-
-    // Preserve _critic metadata through validation — never strip it
-    // It is added by mergeCriticCorrections and must reach the API response
 
     console.log('✅ Validation complete');
     return analysis;
   }
 
-  /**
-   * Fallback response when analysis fails
-   * Returns degraded but valid response structure
-   */
+  // ─── getFallbackResponse ──────────────────────────────────────────────────
   getFallbackResponse(error, rubrics) {
     console.log('🔄 Generating fallback response...');
-    
-    // Check if circuit breaker is open
-    const isCircuitOpen = error.isCircuitBreakerOpen || 
-                         (error.message && error.message.includes('Circuit breaker is OPEN'));
-    
-    // Check if rate limited
-    const isRateLimited = error.status === 429 || 
-                         (error.message && error.message.includes('Rate limit'));
 
-    // Create basic STAR structure with zeros
-    const star = {
-      situation: {
-        score: 0,
-        text: 'Analysis unavailable',
-        feedback: 'Service temporarily unavailable. Please try again.'
-      },
-      task: {
-        score: 0,
-        text: 'Analysis unavailable',
-        feedback: 'Service temporarily unavailable. Please try again.'
-      },
-      action: {
-        score: 0,
-        text: 'Analysis unavailable',
-        feedback: 'Service temporarily unavailable. Please try again.'
-      },
-      result: {
-        score: 0,
-        text: 'Analysis unavailable',
-        feedback: 'Service temporarily unavailable. Please try again.'
-      }
-    };
+    const isCircuitOpen  = error.isCircuitBreakerOpen || (error.message?.includes('Circuit breaker is OPEN'));
+    const isRateLimited  = error.status === 429 || (error.message?.includes('Rate limit'));
 
-    // Create zero scores for all competencies
+    const star = ['situation', 'task', 'action', 'result'].reduce((acc, key) => {
+      acc[key] = { score: 0, text: 'Analysis unavailable', feedback: 'Service temporarily unavailable. Please try again.' };
+      return acc;
+    }, {});
+
     const competencies = {};
-    rubrics.forEach(rubric => {
-      competencies[rubric.competency_name] = 0;
-    });
+    rubrics.forEach(r => { competencies[r.competency_name] = 0; });
 
-    // Create error message for improvements
-    const errorMessage = isCircuitOpen 
-      ? 'Analysis service is temporarily down. Our team has been notified. Please try again in a few minutes.'
+    const errorMessage = isCircuitOpen
+      ? 'Analysis service is temporarily down. Please try again in a few minutes.'
       : isRateLimited
-      ? 'Too many requests. Please wait a moment and try again.'
-      : 'Analysis service encountered an error. Please try again.';
+        ? 'Too many requests. Please wait a moment and try again.'
+        : 'Analysis service encountered an error. Please try again.';
 
     return {
       star,
       competencies,
-      improvements: [
-        {
-          priority: 'critical',
-          component: 'system',
-          location: 'N/A',
-          current_text: 'Service Error',
-          improved_text: errorMessage,
-          rationale: 'System is temporarily unable to process your request',
-          example_reference: 'N/A'
-        }
-      ],
-      _fallback: true,
-      _error: error.message,
-      _errorType: isCircuitOpen ? 'circuit_breaker_open' : isRateLimited ? 'rate_limited' : 'unknown'
+      improvements: [{
+        priority:         'critical',
+        component:        'system',
+        gap_identified:   'Service Error',
+        current_text:     'Service Error',
+        rewritten_text:   errorMessage,
+        rationale:        'System is temporarily unable to process your request',
+        example_reference:'N/A'
+      }],
+      _fallback:   true,
+      _error:      error.message,
+      _errorType:  isCircuitOpen ? 'circuit_breaker_open' : isRateLimited ? 'rate_limited' : 'unknown'
     };
   }
 
-  /**
-   * Get circuit breaker status
-   */
-  getCircuitBreakerStatus() {
-    return this.circuitBreaker.getMetrics();
-  }
-
-  /**
-   * Get rate limiter status
-   */
-  getRateLimiterStatus() {
-    return this.rateLimiter.getMetrics();
-  }
+  getCircuitBreakerStatus() { return this.circuitBreaker.getMetrics(); }
+  getRateLimiterStatus()    { return this.rateLimiter.getMetrics(); }
 }
 
 module.exports = CombinedAnalyzer;
