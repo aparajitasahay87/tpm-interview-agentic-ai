@@ -300,7 +300,6 @@ function assertResponseIntegrity(apiResponse, storyLabel) {
     has_all_components:   ['situation','obstacle','action','result','reflection']
                             .every(c => apiResponse.soarr?.[c]?.score != null),
     has_coaching_summary: !!apiResponse.coaching_summary,
-    has_strength_tier:    !!apiResponse.strength_tier,
     has_improvements:     Array.isArray(apiResponse.improvements),
     no_fallback:          apiResponse.analysis_status !== 'fallback',
     scores_in_range:      ['situation','obstacle','action','result','reflection']

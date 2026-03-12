@@ -198,6 +198,7 @@ router.post('/', async (req, res) => {
         // ── SOARR response ───────────────────────────────────────────────
         soarr,
         competencies,
+        strength_tier:    analysis.strength_tier    || null,
         improvements: analysis.improvements || [],
         depth_signals:    analysis.depth_signals    || null,
         coaching_summary: analysis.coaching_summary || null,
