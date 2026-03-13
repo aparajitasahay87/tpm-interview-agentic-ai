@@ -184,6 +184,15 @@ class CombinedAnalyzer {
       validatedAnalysis.coaching_summary = depthCoaching.coaching_summary || null;
       validatedAnalysis.similarExamples  = examplesForAnalysis;
 
+      // ── Feature 1: Constraint-Based Coaching ──────────────────────────────
+      const missingConstraints = this.detectMissingConstraints(validatedAnalysis);
+      validatedAnalysis.coach_focus = missingConstraints.slice(0, 2);
+      console.log(`🎯 coach_focus: ${validatedAnalysis.coach_focus.map(c => c.component).join(', ') || 'none — strong answer'}`);
+
+      // ── Feature 2: Example-Delta Coaching ────────────────────────────────
+      validatedAnalysis.example_deltas = this.extractExampleDelta(validatedAnalysis, examplesForAnalysis);
+      console.log(`📐 example_deltas: ${validatedAnalysis.example_deltas.length} delta(s) found`);
+
       console.log('✅ Analysis complete (SOARR + depth + coaching)');
       return validatedAnalysis;
 
@@ -908,6 +917,23 @@ Placeholders are honest. Invented numbers are coaching malpractice — candidate
 
 Return your final analysis as valid JSON matching the output_format exactly. No star field.
 
+IMPROVEMENTS FORMAT REMINDER — every improvement object MUST use EXACTLY this structure:
+{
+  "priority": "critical|high|medium",
+  "component": "situation|obstacle|action|result|reflection",
+  "gap_identified": "Missing: [element]. Ideal has: [quote]. Candidate has: [quote or none].",
+  "current_text": "exact verbatim quote from candidate answer",
+  "rewritten_text": "expanded version keeping candidate words as backbone",
+  "rationale": "Your answer says [X] but interviewer needs [Y] because [Z].",
+  "example_reference": "Example 1 or Example 2 or no example — candidate must supply"
+}
+A "text" key is INVALID. Return ONLY the above structure. Every field is required.
+
+FEEDBACK FORMAT REMINDER — every soarr feedback string MUST:
+  Start with: "You said '[exact candidate words from text field]'..."
+  If text = "none stated" → start with: "You said nothing about [component]. Add: [specific guidance]."
+  NEVER start with "You said 'none'." — always reference the component name instead.
+
 ---
 CANDIDATE ANSWER:
 ${JSON.stringify(candidate_answer)}
@@ -1136,6 +1162,17 @@ OUTPUT FORMAT (valid JSON, exactly these fields):
         criticResult.critic_notes = '';
       }
 
+      // Filter no-op corrections (e.g. "obstacle 1→1") — these are critic noise
+      if (criticResult.corrections_made) {
+        criticResult.corrections_made = criticResult.corrections_made.filter(c => {
+          // Keep only corrections where old score ≠ new score (pattern: "field X→Y")
+          const match = c.match(/(\d+)→(\d+)/);
+          if (!match) return true; // keep if format is unexpected
+          return match[1] !== match[2]; // drop if X === Y
+        });
+        criticResult.corrections_count = criticResult.corrections_made.length;
+      }
+
       if (criticResult.corrections_made && criticResult.corrections_made.length > 0) {
         console.log(`⚠️  Critic corrected ${criticResult.corrections_made.length} score(s):`);
         criticResult.corrections_made.forEach(c => console.log(`   ${c}`));
@@ -1247,6 +1284,8 @@ CRITICAL RULES:
               : correction.corrected_score;
             const safeScore = parseInt(rawScore);
             if (!isNaN(safeScore) && safeScore >= 1 && safeScore <= 5) {
+              // Skip no-op corrections (same score — critic noise)
+              if (safeScore === merged.soarr[component].score) return;
               console.log(`  📝 Correcting soarr.${component} score: ${merged.soarr[component].score} → ${safeScore}`);
               merged.soarr[component].score = safeScore;
             }
@@ -1331,10 +1370,12 @@ CRITICAL RULES:
       console.warn('⚠️  star block found in SOARR response — removed');
     }
 
-    if (analysis.competencies) {
+    // Always validate competencies — even if model returned {} or omitted the block
+    {
       const validatedCompetencies = {};
       const reasoningMap = {};
 
+      // Build recovery map from competency_reasoning (chain-of-thought scores)
       const reasoning = analysis.internal_reasoning?.competency_reasoning;
       if (reasoning && typeof reasoning === 'object') {
         Object.entries(reasoning).forEach(([key, val]) => {
@@ -1344,9 +1385,15 @@ CRITICAL RULES:
         });
       }
 
+      // If model returned empty competencies {}, log it clearly
+      const modelCompetencies = analysis.competencies || {};
+      if (Object.keys(modelCompetencies).length === 0) {
+        console.warn('⚠️  competencies block is empty — recovering from competency_reasoning or defaulting to 1');
+      }
+
       rubrics.forEach(rubric => {
         const competencyName = rubric.competency_name;
-        const score = analysis.competencies[competencyName];
+        const score = modelCompetencies[competencyName];
 
         if (typeof score === 'number' && score > 0 && score <= 5 && Number.isInteger(score)) {
           validatedCompetencies[competencyName] = score;
@@ -1354,7 +1401,7 @@ CRITICAL RULES:
           console.log(`  🔧 Recovering ${competencyName} from competency_reasoning: ${reasoningMap[competencyName]}`);
           validatedCompetencies[competencyName] = reasoningMap[competencyName];
         } else {
-          console.warn(`⚠️  Invalid competency score for ${competencyName}: ${score} — defaulting to 1`);
+          console.warn(`⚠️  No score for ${competencyName} — defaulting to 1`);
           validatedCompetencies[competencyName] = 1;
         }
       });
@@ -1544,6 +1591,127 @@ CRITICAL RULES:
       _errorType:       isCircuitOpen ? 'circuit_breaker_open' : isRateLimited ? 'rate_limited' : 'unknown',
       _userMessage:     errorMessage
     };
+  }
+
+
+  // ─── detectMissingConstraints ─────────────────────────────────────────────
+  // Feature 1: Constraint-Based Coaching
+  // Deterministic — zero LLM calls. Runs in <1ms.
+  // Reads validated SOARR scores, returns top 2 missing constraints by severity.
+  detectMissingConstraints(analysis) {
+    const soarr = analysis.soarr || {};
+
+    const CONSTRAINTS = [
+      {
+        component:      'obstacle',
+        soarrKey:       'obstacle',
+        severity:       5,
+        why_it_matters: 'Without a real blocker, the story sounds procedural instead of demonstrating problem solving.'
+      },
+      {
+        component:      'outcome',
+        soarrKey:       'result',
+        severity:       5,
+        why_it_matters: 'Without measurable results, interviewers cannot judge the impact of your actions.'
+      },
+      {
+        component:      'decision',
+        soarrKey:       'action',
+        severity:       4,
+        why_it_matters: 'Without a clear decision or trade-off, the answer shows execution but not judgment.'
+      },
+      {
+        component:      'context',
+        soarrKey:       'situation',
+        severity:       3,
+        why_it_matters: 'Without clear stakes and context, interviewers cannot assess the scope of your impact.'
+      },
+      {
+        component:      'reflection',
+        soarrKey:       'reflection',
+        severity:       2,
+        why_it_matters: 'Without a lesson learned, the answer shows what happened but not how you grew from it.'
+      }
+    ];
+
+    const missing = CONSTRAINTS
+      .filter(c => {
+        const score = soarr[c.soarrKey]?.score;
+        return typeof score === 'number' && score <= 2;
+      })
+      .sort((a, b) => b.severity - a.severity);
+
+    return missing.map(c => ({
+      component:      c.component,
+      severity:       c.severity,
+      why_it_matters: c.why_it_matters
+    }));
+  }
+
+  // ─── extractExampleDelta ──────────────────────────────────────────────────
+  // Feature 2: Example-to-Candidate Delta Coaching
+  // Deterministic — zero LLM calls. Runs in <1ms.
+  // Compares candidate SOARR scores against top example text.
+  // Returns components where candidate is weak but example has strong signal.
+  extractExampleDelta(analysis, examples) {
+    if (!examples || examples.length === 0) return [];
+
+    const soarr      = analysis.soarr || {};
+    const topExample = examples[0];
+
+    const SOARR_KEYS = ['situation', 'obstacle', 'action', 'result', 'reflection'];
+    const deltas = [];
+
+    // Helper: extract first meaningful sentence(s) from a text string (min 40 chars)
+    const extractSignal = (text) => {
+      if (!text || typeof text !== 'string') return null;
+      // Split on sentence boundaries, find first substantial sentence
+      const sentences = text.split(/(?<=[.!?])\s+/);
+      const meaningful = sentences.find(s => s.trim().length >= 40);
+      return meaningful ? meaningful.trim().substring(0, 200) : null;
+    };
+
+    for (const key of SOARR_KEYS) {
+      const candidateScore = soarr[key]?.score;
+      if (typeof candidateScore !== 'number' || candidateScore > 2) continue;
+
+      // Try soarr_breakdown first (populated if DB has soarr scores)
+      const exampleBreakdown = topExample.soarr_breakdown || {};
+      let exampleText =
+        exampleBreakdown[key]?.text ||
+        (typeof exampleBreakdown[key] === 'string' ? exampleBreakdown[key] : null) ||
+        (key === 'obstacle' ? exampleBreakdown.task?.text || (typeof exampleBreakdown.task === 'string' ? exampleBreakdown.task : null) : null);
+
+      // Fallback: extract relevant signal from answer_text using keyword matching
+      if ((!exampleText || exampleText.length < 40) && topExample.answer_text) {
+        const COMPONENT_KEYWORDS = {
+          situation:  ['my role', 'i was', 'at ', 'we were', 'the project', 'our team', 'leading'],
+          obstacle:   ['challenge', 'problem', 'issue', 'blocker', 'disagreement', 'conflict', 'concern', 'risk', 'blocked', 'refused', 'opposed'],
+          action:     ['i proposed', 'i analyzed', 'i built', 'i created', 'i worked', 'i initiated', 'i escalated', 'i decided', 'i facilitated'],
+          result:     ['result', 'outcome', 'improved', 'increased', 'reduced', 'delivered', 'success', '%', 'within'],
+          reflection: ['learned', 'lesson', 'takeaway', 'now i', 'going forward', 'key insight', 'this taught']
+        };
+        const keywords = COMPONENT_KEYWORDS[key] || [];
+        const sentences = topExample.answer_text.split(/(?<=[.!?])\s+/);
+        const match = sentences.find(s =>
+          s.length >= 40 && keywords.some(kw => s.toLowerCase().includes(kw))
+        );
+        if (match) exampleText = match.trim().substring(0, 200);
+      }
+
+      const signal = extractSignal(exampleText);
+      if (!signal) continue;
+
+      // Deduplicate — skip if this exact signal was already used for a previous component
+      if (deltas.some(d => d.exemplar_signal === signal)) continue;
+
+      deltas.push({
+        component:       key,
+        exemplar_signal: signal
+      });
+    }
+
+    return deltas;
   }
 
   getCircuitBreakerStatus() { return this.circuitBreaker.getMetrics(); }

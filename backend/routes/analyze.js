@@ -133,7 +133,7 @@ router.post('/', async (req, res) => {
 
     // ── Step 4: Parse scores ──────────────────────────────────────────────────
     // null preserved for fallback — never coerce to 0.
-    const parseScore = (val) => val === null || val === undefined ? null : parseFloat(val) || 0;
+    const parseScore = (val) => { if (val === null || val === undefined) return null; const n = parseFloat(val); return isNaN(n) ? null : n; };
 
     // ── Step 5: Build SOARR response block ────────────────────────────────────
     // SOARR is the only scoring framework. validateAnalysis() guarantees all
@@ -183,7 +183,7 @@ router.post('/', async (req, res) => {
       comp_category:  e.comp_category  || '',
       level:          e.level          || '',
       similarity:     e.similarity     || 0,
-      answer_preview: (e.answer_text   || '').substring(0, 200)
+      answer_preview: (e.answer_preview || e.answer_text || '').substring(0, 200)
     }));
 
     // ── Step 8: Return complete SOARR analysis ─────────────────────────────
@@ -203,6 +203,8 @@ router.post('/', async (req, res) => {
         depth_signals:    analysis.depth_signals    || null,
         coaching_summary: analysis.coaching_summary || null,
         similar_examples: similarExamples,
+        coach_focus:      analysis.coach_focus      || [],
+        example_deltas:   analysis.example_deltas   || [],
         _critic:          analysis._critic          || null,
 
         // FIX 5: internal_reasoning is chain-of-thought — generated and used
