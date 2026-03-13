@@ -973,7 +973,7 @@ OUTPUT FORMAT (valid JSON, exactly these fields):
         const response = await this.openai.chat.completions.create({
           model:           'gpt-4o',
           messages: [
-            { role: 'system', content: 'You are an expert TPM interview coach. Return valid JSON with all required fields. Use the SOARR framework only — do not output a star field.' },
+            { role: 'system', content: 'You are an expert TPM interview coach. Return valid JSON. CRITICAL: Your response MUST contain a "soarr" key with exactly these sub-keys: situation, obstacle, action, result, reflection. Each must have score (integer 1-5), text (string), and feedback (string). NEVER return a "star" key — if you return star instead of soarr the output is invalid and will be rejected.' },
             { role: 'user',   content: prompt }
           ],
           temperature:     0.3,
@@ -982,6 +982,7 @@ OUTPUT FORMAT (valid JSON, exactly these fields):
         });
         const content = response.choices[0].message.content;
         console.log('📥 Call 1 (SOARR) response received');
+        console.log('🔬 Call 1 top-level keys:', Object.keys(JSON.parse(content)).join(', '));
         return JSON.parse(content);
       });
     }, 'soarr-analysis');
