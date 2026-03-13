@@ -1323,7 +1323,7 @@ CRITICAL RULES:
     if (criticResult.competency_corrections) {
       Object.entries(criticResult.competency_corrections).forEach(([competency, rawCorrection]) => {
         if (rawCorrection === null || rawCorrection === undefined) return;
-        if (merged.competencies[competency] === undefined) return;
+        if (!merged.competencies || merged.competencies[competency] === undefined) return;
 
         let finalScore = null;
         if (typeof rawCorrection === 'object') {
