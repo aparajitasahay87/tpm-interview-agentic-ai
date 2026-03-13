@@ -151,6 +151,9 @@ class CombinedAnalyzer {
       // Strong/medium answers with clean scores skip the critic entirely.
       // Saves ~1 GPT-4o-mini call for ~60% of requests.
       const shouldRunCritic = this.shouldRunCritic(soarrAnalysis, gateDecision);
+      const _soarrScores = Object.values(soarrAnalysis.soarr||{}).map(c=>c?.score).filter(s=>typeof s==='number');
+      const _avg = _soarrScores.length > 0 ? (_soarrScores.reduce((a,b)=>a+b,0) / _soarrScores.length).toFixed(1) : 'n/a';
+      console.log(`🎯 Critic triggered: ${shouldRunCritic} (avg=${_avg}, scores=${_soarrScores.length}/5)`);
       console.log(`🔍 Critic: ${shouldRunCritic ? 'running' : 'skipped (clean output)'}`);
       const criticedAnalysis = shouldRunCritic
         ? await this.runCriticPass(soarrAnalysis, userAnswer, rubrics, gateDecision)
@@ -907,13 +910,13 @@ Return your final analysis as valid JSON matching the output_format exactly. No 
 
 ---
 CANDIDATE ANSWER:
-\${JSON.stringify(candidate_answer)}
+${JSON.stringify(candidate_answer)}
 
 IDEAL EXAMPLES:
-\${JSON.stringify(ideal_examples, null, 2)}
+${JSON.stringify(ideal_examples, null, 2)}
 
 RUBRICS:
-\${JSON.stringify(rubricList, null, 2)}`;
+${JSON.stringify(rubricList, null, 2)}`;
   }
 
   // ─── buildDepthCoachingPrompt ─────────────────────────────────────────────
@@ -1006,76 +1009,6 @@ OUTPUT FORMAT (valid JSON, exactly these fields):
     }, 'depth-coaching');
   }
 
-  // ─── runQualityGate ───────────────────────────────────────────────────────
-  async runQualityGate(analysis, userAnswer) {
-    try {
-      const inv            = analysis.internal_reasoning?.evidence_inventory || {};
-      const hasMetrics     = inv.metrics_numbers && inv.metrics_numbers !== 'none';
-      const hasStakeholders= inv.stakeholders && !inv.stakeholders.toLowerCase().includes('generic');
-      const hasTimeline    = inv.timeline && inv.timeline !== 'none';
-      const hasTools       = inv.tools_systems && inv.tools_systems !== 'none';
-      const evidenceCount  = [hasMetrics, hasStakeholders, hasTimeline, hasTools].filter(Boolean).length;
-
-      const soarrScores = analysis.soarr
-        ? Object.entries(analysis.soarr).map(([k, v]) => `${k}: ${v?.score ?? '?'}/5`).join(', ')
-        : 'unavailable';
-
-      const gatePrompt = `You are a quality gate in a TPM interview coaching pipeline.
-
-SOARR analysis just completed. Make ONE routing decision:
-- PROCEED: evidence is sufficient to deliver useful coaching feedback
-- NEEDS_CONTEXT: a critical element is missing — flag it for the critic
-
-SOARR EVIDENCE SUMMARY:
-SOARR scores: ${soarrScores}
-Evidence found:
-- Metrics/numbers:  ${hasMetrics       ? inv.metrics_numbers : 'none'}
-- Stakeholders:     ${hasStakeholders  ? inv.stakeholders    : 'generic only'}
-- Timeline:         ${hasTimeline      ? inv.timeline        : 'none'}
-- Tools/systems:    ${hasTools         ? inv.tools_systems   : 'none'}
-Evidence count: ${evidenceCount}/4
-
-DECISION RULES (apply in order):
-1. If all SOARR scores >= 3  → PROCEED
-2. If evidenceCount >= 3     → PROCEED
-3. If evidenceCount <= 2 AND any SOARR score <= 2 → NEEDS_CONTEXT
-4. Otherwise                 → PROCEED
-
-Return JSON only:
-{
-  "decision": "PROCEED" or "NEEDS_CONTEXT",
-  "hint": "one sentence for the critic — null if PROCEED",
-  "reason": "one sentence explaining your decision"
-}`;
-
-      const response = await this.rateLimiter.execute(async () => {
-        return await this.circuitBreaker.execute(async () => {
-          return await this.openai.chat.completions.create({
-            model:           'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: 'You are a quality gate. Return only valid JSON.' },
-              { role: 'user',   content: gatePrompt }
-            ],
-            temperature:     0.1,
-            max_tokens:      150,
-            response_format: { type: 'json_object' }
-          });
-        });
-      }, 'quality-gate');
-
-      const result = JSON.parse(response.choices[0].message.content);
-      if (!['PROCEED', 'NEEDS_CONTEXT'].includes(result.decision)) {
-        return { decision: 'PROCEED', hint: null, reason: 'invalid response — defaulting' };
-      }
-      return { decision: result.decision, hint: result.hint || null, reason: result.reason || '' };
-
-    } catch (error) {
-      console.warn('⚠️  Quality gate failed, defaulting to PROCEED:', error.message);
-      return { decision: 'PROCEED', hint: null, reason: 'gate error — defaulting' };
-    }
-  }
-
-
 
   // ─── assertPromptIntegrity ────────────────────────────────────────────────
   // Validates that the built prompt contains all required dynamic data before
@@ -1086,12 +1019,15 @@ Return JSON only:
   assertPromptIntegrity(prompt, userAnswer, examples) {
     const checks = {
       has_candidate_answer: prompt.includes(
-        (userAnswer || '').substring(0, 40).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        (userAnswer || '').substring(0, 40)
       ) || prompt.includes('CANDIDATE ANSWER'),
       has_ideal_examples_section: prompt.includes('IDEAL EXAMPLES'),
       has_rubrics_section:        prompt.includes('RUBRICS'),
       has_soarr_instructions:     prompt.includes('SOARR'),
-      min_length:                 prompt.length > 3000
+      min_length:                 prompt.length > 3000,
+      // Content checks — catch empty arrays passed as dynamic data
+      has_examples_content:       examples.length === 0 || prompt.includes('answer_text'),
+      has_rubric_content:         prompt.includes('competency') || prompt.includes('level_1')
     };
 
     const failures = Object.entries(checks)
@@ -1187,6 +1123,18 @@ Return JSON only:
       const criticResult = JSON.parse(response.choices[0].message.content);
       console.log('📋 Critic pass complete');
 
+      // Enforce diagnose-and-fix rule: if critic reported issues but made no corrections,
+      // clear the notes — prevents misleading logs and wasted token output.
+      if (
+        criticResult.critic_notes &&
+        criticResult.critic_notes.trim() &&
+        criticResult.critic_notes.trim() !== '' &&
+        (!criticResult.corrections_made || criticResult.corrections_made.length === 0)
+      ) {
+        console.warn('⚠️  Critic reported issues but made no corrections — clearing notes');
+        criticResult.critic_notes = '';
+      }
+
       if (criticResult.corrections_made && criticResult.corrections_made.length > 0) {
         console.log(`⚠️  Critic corrected ${criticResult.corrections_made.length} score(s):`);
         criticResult.corrections_made.forEach(c => console.log(`   ${c}`));
@@ -1229,44 +1177,32 @@ ${JSON.stringify(rubrics.map(r => ({
     level_5:    r.level_5_description || r.level_5
   })), null, 2)}
 
-YOUR AUDIT TASK — check for these contradiction types:
-TYPE 1 - SCORE TOO LOW: Evidence exists in inventory but SOARR score does not reflect it.
-TYPE 2 - SCORE TOO HIGH: SOARR score given but inventory has no supporting evidence.
-TYPE 3 - HALLUCINATED EVIDENCE: Feedback references something NOT in evidence_inventory.
-TYPE 4 - INVALID ZERO SCORES: Any score of 0 is invalid — minimum is 1.
-TYPE 5 - HALLUCINATION IN IMPROVEMENTS: rewritten_text contains numbers, metrics, timelines, or tool names not present in the candidate answer or ideal examples. Flag every invented detail.
-TYPE 6 - IMPROVEMENTS NOT GROUNDED: rewritten_text gives generic advice instead of using the candidate's own words and context.
-TYPE 7 - SOARR INCONSISTENCY: reflection score > 1 but reflection.text is empty or "none stated". obstacle score > 1 but obstacle.text is empty.
-TYPE 8 - COMPETENCY SCORE TOO LOW: Competency scored 1 but evidence_inventory contains actions matching that competency. Score 1 means zero evidence — if the candidate mentioned ANY relevant action, minimum is 2.
+YOUR AUDIT TASK — fix ONLY these three cases. Nothing else.
 
-STRICT DEFINITIONS — do not deviate from these:
-obstacle score > 1 ONLY IF: the candidate explicitly named a specific blocker, constraint, or problem they had to overcome. Mentioning stakeholders, teams, or dependencies is NOT an obstacle. "We had to coordinate with X" is NOT an obstacle. "potential challenge" or "could threaten" inferred by you is NOT an obstacle — it must be in the candidate's actual words. Required phrase pattern: "We faced [specific problem]" or "X broke" or "Y was blocked".
-reflection score > 1 ONLY IF: the candidate explicitly stated a lesson, takeaway, principle, or behavioral change derived from this experience. Defining exit criteria is NOT reflection. Planning activities are NOT reflection.
-VALID reflection phrases (score at minimum 3): "Key lesson:", "Key learning:", "The big takeaway?", "Three key lessons:", "Don't anchor on", "State assumptions clearly", "design like they're going to fail", "I should've [done X] earlier", "Now [X] is our standard", "I now apply", "I learned [X]", "This taught me".
-INVALID: vague "I learned a lot", planning steps, exit criteria, process descriptions.
-action score 3 ONLY IF: the candidate described a specific adaptation, pivot, or decision in response to a changing situation. Running ceremonies and sharing updates is level_1 execution (score 2), not level_3. Level_3 requires: "I changed my approach when X happened" or "I pivoted by doing Y" or "I made a trade-off between A and B."
+TYPE A — INVALID SCORE RANGE: Any SOARR score of 0 or >5. Correct to nearest valid value (1-5).
 
-BEFORE correcting obstacle or reflection upward, you MUST quote the exact candidate words that justify it.
-If you cannot quote exact candidate words — do not correct. "Potential", "implies", "could indicate", "suggests" are not evidence.
-If your justification uses any of those words — do not make the correction.
+TYPE B — INCONSISTENT SOARR: Component text is "none stated" but score > 1. Correct score to 1.
+  obstacle and reflection: if text = "none stated" → score MUST be 1. No exceptions.
 
-COMPETENCY AUDIT — for every competency scored 1, ask:
-"Does the candidate answer contain ANY phrase that relates to this competency?"
-If yes → the score must be at least 2. Check each one explicitly:
-- Communication: did they mention updates, newsletters, stakeholder communication, sharing status?
-- Execution: did they mention running ceremonies, roadmaps, managing phases, tracking milestones?
-- Prioritization: did they mention ordering work, scoping, deciding what to do first?
-- Program Kickoff: did they mention requirements, sponsors, entry criteria, project start activities?
-- Risk Mitigation: did they mention risks, dependencies, mitigation?
-- Strategic Influence: did they mention influencing stakeholders, getting buy-in, shaping direction?
+TYPE C — COMPETENCY UNDER-SCORED: Competency score = 1 but evidence_inventory contains ANY relevant phrase.
+  Score 1 means zero evidence. If the candidate mentioned ANY relevant action → minimum score 2.
+  Check each competency scored 1:
+  - Communication: any mention of updates, newsletters, stakeholder communication, status sharing?
+  - Execution: any mention of ceremonies, roadmaps, phases, milestones?
+  - Prioritization: any mention of ordering work, scoping, deciding what to do first?
+  - Risk Mitigation: any mention of risks, dependencies, mitigation?
+  - Strategic Influence: any mention of influencing stakeholders, buy-in, shaping direction?
+
+DO NOT audit score accuracy, hallucinations, improvements quality, or anything else.
+DO NOT correct scores upward unless TYPE C applies with exact candidate words.
+If you cannot quote exact candidate words — do not make the correction.
 
 RETURN JSON:
 {
   "corrections_made": [
-    "FORMAT REQUIRED: '[field] [old]→[new]: exact candidate words that justify this = \"[quote]\"'",
+    "FORMAT: '[field] [old]→[new]: exact candidate words = \"[quote]\"'",
     "EXAMPLE: 'Communication 1→2: exact candidate words = \"share newsletter, weekly project updates\"'",
-    "If you cannot fill in the exact quote — do not include the correction entry at all.",
-    "obstacle and reflection corrections REQUIRE an exact quote. No quote = no entry."
+    "If no exact quote exists — do not include the entry."
   ],
   "soarr_corrections": {
     "situation":  { "corrected_score": null, "corrected_feedback": null },
@@ -1276,22 +1212,24 @@ RETURN JSON:
     "reflection": { "corrected_score": null, "corrected_feedback": null }
   },
   "competency_corrections": { "CompetencyName": 3 },
-  "critic_notes": "overall assessment — flag TYPE 5 issues explicitly",
-  "improvements_issues": ["list every TYPE 5/6 hallucination found — empty array if none"]
+  "critic_notes": "one sentence max — only if a correction was made. Empty string if no corrections.",
+  "improvements_issues": []
 }
 
 CRITICAL RULES:
 1. competency_corrections values must be plain integers ONLY — never objects.
-2. You MUST correct competency scores when the evidence_inventory contradicts them.
-   A score of 1 means "no evidence whatsoever". If ANY evidence exists, minimum score is 2.
-3. For TYPE 1 (score too low): state the correction with the exact candidate quote.
-   If you write "scores are too low" in critic_notes but make no corrections, that is a failure.
-4. For competency scoring:
-   - Evidence exists but minimal (1-2 generic actions mentioned) → score 2
-   - Evidence matches level_1 descriptor → score 2
-   - Evidence matches level_3 descriptor → score 3
-   - Evidence matches level_5 descriptor → score 4-5
-5. obstacle and reflection: if the text field is "none stated" — the score MUST be 1. No exceptions.`;
+2. ONLY make corrections for these three cases — nothing else:
+   TYPE A: score is 0 or >5 (invalid range) — correct to nearest valid score
+   TYPE B: soarr component text is "none stated" but score > 1 — correct score to 1
+   TYPE C: competency score = 1 but evidence_inventory shows ANY evidence — correct to 2
+3. If you write anything in critic_notes about a problem, you MUST make a correction for it.
+   critic_notes + corrections_count=0 is a failure — diagnose AND fix or say nothing.
+4. competency scoring rules:
+   - Any evidence exists → minimum score 2
+   - Evidence matches level_1 → score 2
+   - Evidence matches level_3 → score 3
+   - Evidence matches level_5 → score 4-5
+5. obstacle and reflection: text="none stated" → score MUST be 1. No exceptions.`;
   }
 
   // ─── mergeCriticCorrections ───────────────────────────────────────────────
@@ -1492,7 +1430,7 @@ CRITICAL RULES:
 
       // Derive strength_tier from avg score
       const tier = avg >= 4.0 ? 'strong' : avg >= 2.5 ? 'medium' : 'weak';
-      analysis.strength_tier = analysis.strength_tier || tier;
+      analysis.strength_tier = tier;
 
       // Enforce improvement count limits
       const limits = { strong: 2, medium: 3, weak: 5 };
