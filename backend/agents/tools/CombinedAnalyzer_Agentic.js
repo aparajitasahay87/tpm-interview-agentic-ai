@@ -22,12 +22,12 @@ const { getRateLimiter } = require('../../utils/RateLimiter');
  * - Net: +~600 tokens per request in exchange for permanently correct grounding
  */
 class CombinedAnalyzer {
-  /*constructor() {
+  constructor() {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
     });
-    */
-   constructor() {
+    
+  /* constructor() {
     const sessionId = require('crypto').randomUUID();
     this.sessionId  = sessionId;
 
@@ -39,7 +39,7 @@ class CombinedAnalyzer {
         'X-Session-ID': sessionId,
       }
     });
-
+*/
     this.semanticSearch = new SemanticSearch();
     this.metadataExtractor = new MetadataExtractor();
 
