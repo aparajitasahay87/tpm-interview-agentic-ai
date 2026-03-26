@@ -22,9 +22,22 @@ const { getRateLimiter } = require('../../utils/RateLimiter');
  * - Net: +~600 tokens per request in exchange for permanently correct grounding
  */
 class CombinedAnalyzer {
-  constructor() {
+  /*constructor() {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
+    });
+    */
+   constructor() {
+    const sessionId = require('crypto').randomUUID();
+    this.sessionId  = sessionId;
+
+    this.openai = new OpenAI({
+      apiKey:   process.env.OPENAI_API_KEY,
+      baseURL:  process.env.LLM_PROXY_URL || 'https://api.openai.com/v1',
+      defaultHeaders: {
+        'X-Project-ID': process.env.PROJECT_ID  || '',
+        'X-Session-ID': sessionId,
+      }
     });
 
     this.semanticSearch = new SemanticSearch();
@@ -48,8 +61,20 @@ class CombinedAnalyzer {
   //   filter is skipped and all levels are fetched. Callers should pass it
   //   once available in the request (see analyze.js update).
   async analyze(userAnswer, categoryId, rubrics, candidateLevel = null, questionText = '') {
+
+  
+    this.sessionId = require('crypto').randomUUID();
+    this.openai = new OpenAI({
+      apiKey:   process.env.OPENAI_API_KEY,
+      baseURL:  process.env.LLM_PROXY_URL || 'https://api.openai.com/v1',
+      defaultHeaders: {
+        'X-Project-ID': process.env.PROJECT_ID || '',
+        'X-Session-ID': this.sessionId,
+      }
+    });
     try {
       console.log('🚀 Starting combined analysis (Option 4)...');
+       console.log(`📊 Session: ${this.sessionId}`);
       console.log(`📊 Category: ${categoryId} | Level: ${candidateLevel || 'unknown'} | Rubrics: ${rubrics.length}`);
 
       // ── Stage 1: Hybrid retrieval ─────────────────────────────────────────
