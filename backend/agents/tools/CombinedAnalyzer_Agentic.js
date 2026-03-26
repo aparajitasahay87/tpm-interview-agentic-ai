@@ -22,24 +22,25 @@ const { getRateLimiter } = require('../../utils/RateLimiter');
  * - Net: +~600 tokens per request in exchange for permanently correct grounding
  */
 class CombinedAnalyzer {
-  constructor() {
+ /* constructor() {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
     });
+    */
     
-  /* constructor() {
+   constructor() {
     const sessionId = require('crypto').randomUUID();
     this.sessionId  = sessionId;
 
     this.openai = new OpenAI({
       apiKey:   process.env.OPENAI_API_KEY,
-      baseURL:  process.env.LLM_PROXY_URL || 'https://api.openai.com/v1',
+      baseURL:  process.env.LLM_PROXY_URL || 'https://llm-token-dashboard.onrender.com/proxy/openai',
       defaultHeaders: {
         'X-Project-ID': process.env.PROJECT_ID  || '',
         'X-Session-ID': sessionId,
       }
     });
-*/
+
     this.semanticSearch = new SemanticSearch();
     this.metadataExtractor = new MetadataExtractor();
 
