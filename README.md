@@ -28,8 +28,9 @@
 - [Production Deployment](#production-deployment)
 
 ---
-
 ## Overview
+
+[![Watch the video](https://cdn.loom.com/sessions/thumbnails/4fbaa51626f04ee0b17b932009314ef8-with-play.gif)](https://www.loom.com/share/4fbaa51626f04ee0b17b932009314ef8)
 
 TPM Interview Coach is a full-stack AI application that analyzes interview answers using a multi-step agentic pipeline. It goes beyond generic feedback — using real high-scoring answers as grounding examples, competency rubrics calibrated to TPM levels, and a critic loop that validates output before it reaches the user.
 
